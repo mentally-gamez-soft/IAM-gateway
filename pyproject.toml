@@ -1,0 +1,7 @@
+[project]
+name = "iam-gateway"
+version = "0.1.0"
+description = "A Gateway API IAM in Flask."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
