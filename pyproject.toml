@@ -12,6 +12,30 @@ dependencies = [
     "flask-migrate~=4.1.0",
     "flask-sqlalchemy~=3.1.1",
     "flask-wtf~=1.2.2",
+    "pre-commit>=4.2.0",
     "psycopg2~=2.9.10",
     "python-slugify~=8.0.4",
 ]
+
+[tool.black]
+line-length = 79
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | Docker
+  | build-run-commands
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 79
