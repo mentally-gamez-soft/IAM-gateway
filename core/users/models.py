@@ -1,12 +1,13 @@
 """Defines the models for the users module."""
 
+import uuid
+
+import arrow
 from flask_login import UserMixin
+from sqlalchemy.dialects.postgresql import UUID
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from core import db
-import uuid
-from sqlalchemy.dialects.postgresql import UUID
-import arrow
 
 
 class GwUser(db.Model, UserMixin):
@@ -18,11 +19,13 @@ class GwUser(db.Model, UserMixin):
     username = db.Column(db.String(30), unique=True, nullable=False)
     email = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(50), nullable=False)
-    last_activation_token = db.Column(db.String(500), unique=False, nullable=True)
+    last_activation_token = db.Column(
+        db.String(500), unique=False, nullable=True
+    )
     active = db.Column(db.Boolean, nullable=False, default=False)
-    activated_on =  db.Column(db.DateTime, nullable=True)
-    deactivated_on =  db.Column(db.DateTime, nullable=True)
-    jwt_session_id =  db.Column(db.String(500), nullable=True)
+    activated_on = db.Column(db.DateTime, nullable=True)
+    deactivated_on = db.Column(db.DateTime, nullable=True)
+    jwt_session_id = db.Column(db.String(500), nullable=True)
     deleted = db.Column(db.Boolean, nullable=False, default=False)
     role = db.Column(db.String(50), nullable=False, unique=False)
     is_admin = db.Column(db.Boolean, default=False)
@@ -107,6 +110,23 @@ class GwUser(db.Model, UserMixin):
             bool: True if the user is active, False otherwise.
         """
         return self.active
+
+    @staticmethod
+    def activate_by_id(id) -> "GwUser":
+        """Mark a user as activated..
+
+        Args:
+            id (int): the ID of a user.
+
+        Returns:
+            User: An instance of a user.
+        """
+        gw_user = GwUser.query.get(id)
+        gw_user.active = True
+        gw_user.activated_on = arrow.utcnow().datetime
+        db.session.commit()
+
+        return gw_user
 
     @staticmethod
     def get_all():
