@@ -1,0 +1,41 @@
+[project]
+name = "iam-gateway"
+version = "0.1.0"
+description = "A Gateway API IAM in Flask."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "email-validator~=2.2.0",
+    "flask~=3.1.0",
+    "flask-login~=0.6.3",
+    "flask-mail~=0.10.0",
+    "flask-migrate~=4.1.0",
+    "flask-sqlalchemy~=3.1.1",
+    "flask-wtf~=1.2.2",
+    "pre-commit>=4.2.0",
+    "psycopg2~=2.9.10",
+    "python-slugify~=8.0.4",
+]
+
+[tool.black]
+line-length = 79
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | Docker
+  | build-run-commands
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 79
