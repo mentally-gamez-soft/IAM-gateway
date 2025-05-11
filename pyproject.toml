@@ -16,6 +16,8 @@ dependencies = [
     "pre-commit>=4.2.0",
     "psycopg2~=2.9.10",
     "python-slugify~=8.0.4",
+    "python-usernames>=1.0.0",
+    "requests>=2.32.3",
 ]
 
 [tool.black]

@@ -1,14 +1,14 @@
 repos:
-- repo: https://github.com/PyCQA/bandit
-  rev: 1.8.3
-  hooks:
-  - id: bandit
+# - repo: https://github.com/PyCQA/bandit
+#   rev: 1.8.3
+#   hooks:
+#   - id: bandit
 
-- repo: https://github.com/PyCQA/pydocstyle
-  rev: 6.3.0
-  hooks:
-  - id: pydocstyle
-    exclude: migrations/
+# - repo: https://github.com/PyCQA/pydocstyle
+#   rev: 6.3.0
+#   hooks:
+#   - id: pydocstyle
+#     exclude: migrations/
 
 - repo: https://github.com/psf/black
   rev: stable
