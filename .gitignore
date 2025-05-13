@@ -166,3 +166,6 @@ cython_debug/
 .pypirc
 
 requirements*.txt
+
+# fichiers .env
+.env*
