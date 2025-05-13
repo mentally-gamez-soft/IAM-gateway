@@ -10,6 +10,36 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from core import db
 
 
+class GwUserRole(db.Model):
+    """Declare the model for the available roles."""
+
+    __tablename__ = "gw_user_role"
+
+    id = db.Column(db.Integer, primary_key=True)
+    role = db.Column(db.String(50), unique=False, nullable=False)
+    gwuser_id = db.Column(
+        UUID(as_uuid=True), db.ForeignKey("gw_user.id"), nullable=False
+    )
+    created_on = db.Column(db.DateTime, nullable=False)
+
+    def __init__(self, user_id, role):
+        """Declare constructor for user role.
+
+        Args:
+            user_id (uuid): the uuid of a user
+            role (str): the role of a user
+        """
+        self.role = role
+        self.gwuser_id = user_id
+        self.created_on = arrow.utcnow().datetime
+
+    def save(self):
+        """Save an instance of a user in the database."""
+        if not self.id:
+            db.session.add(self)
+        db.session.commit()
+
+
 class GwUser(db.Model, UserMixin):
     """Declare the user model class."""
 
@@ -19,6 +49,7 @@ class GwUser(db.Model, UserMixin):
     username = db.Column(db.String(30), unique=True, nullable=False)
     email = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(50), nullable=False)
+    created_on = db.Column(db.DateTime, nullable=False)
     last_activation_token = db.Column(
         db.String(500), unique=False, nullable=True
     )
@@ -27,10 +58,16 @@ class GwUser(db.Model, UserMixin):
     deactivated_on = db.Column(db.DateTime, nullable=True)
     jwt_session_id = db.Column(db.String(500), nullable=True)
     deleted = db.Column(db.Boolean, nullable=False, default=False)
-    role = db.Column(db.String(50), nullable=False, unique=False)
+    roles = db.relationship(
+        "GwUserRole",
+        backref="gwuser",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="asc(GwUserRole.created_on)",
+    )
     is_admin = db.Column(db.Boolean, default=False)
 
-    def __init__(self, username, email):
+    def __init__(self, username, email, role):
         """Declare constructor for User.
 
         Args:
@@ -39,6 +76,7 @@ class GwUser(db.Model, UserMixin):
         """
         self.username = username
         self.email = email
+        self.created_on = arrow.utcnow().datetime
 
     def set_password(self, password):
         """Set the assword for a user.
@@ -63,6 +101,19 @@ class GwUser(db.Model, UserMixin):
         """Save an instance of a user in the database."""
         if not self.id:
             db.session.add(self)
+        db.session.commit()
+
+    @staticmethod
+    def add_role_to_user_by_id(user_id, role):
+        """Set the role of a user.
+
+        Args:
+            user_id (UUID): ID of the user.
+            role (str): The role of the user.
+        """
+        gw_user_role = GwUserRole(user_id, role)
+        if not gw_user_role.id:
+            db.session.add(gw_user_role)
         db.session.commit()
 
     def __repr__(self):
@@ -132,3 +183,39 @@ class GwUser(db.Model, UserMixin):
     def get_all():
         """Retrieve the list of all the users."""
         return GwUser.query.all()
+
+    @staticmethod
+    def get_user_roles_by_id(id) -> list:
+        """Retrieve the list of all roles of the user.
+
+        Args:
+            id (UUID): The id of the user.
+
+        Returns:
+            list: All the roles of a user.
+        """
+        user = GwUser.get_by_id(id)
+        if user:
+            return user.roles
+        return []
+
+    @staticmethod
+    def is_active_user_by_id(id):
+        """Check if a user is active.
+
+        Returns:
+            bool: True if the user is active, False otherwise.
+        """
+        return GwUser.get_by_id(id).active
+
+    staticmethod
+
+    def reset_activation_token_by_id(id: UUID, activation_token: str):
+        """Set the last activation token for the user.
+
+        Args:
+            id (UUID): id of the user.
+            activation_token (str): one time activation token.
+        """
+        GwUser.get_by_id(id).last_activation_token = activation_token
+        db.session.commit()
