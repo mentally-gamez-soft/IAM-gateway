@@ -1,6 +1,10 @@
 """Define the module to validate users inputs."""
 
+from pybreaker import CircuitBreaker
+
 from config.default import (
+    CIRCUIT_BREAK_MAX_FAIL,
+    CIRCUIT_BREAK_RESET_TIMEOUT,
     RULE_PASSWORD_MAX_LENGTH,
     RULE_PASSWORD_MIN_LENGTH,
     RULE_PASSWORD_MIN_STRENGTH_SCORE,
@@ -21,6 +25,10 @@ from core.services.validators.emails import EmailValidator
 from core.services.validators.passwords import PasswordValidator
 from core.services.validators.usernames import UsernameValidator
 
+circuit_breaker = CircuitBreaker(
+    fail_max=CIRCUIT_BREAK_MAX_FAIL, reset_timeout=CIRCUIT_BREAK_RESET_TIMEOUT
+)
+
 
 def __valid_email(email: str) -> dict:
     return EmailValidator.is_valid_email(email)
@@ -32,6 +40,7 @@ def __valid_username(username: str) -> bool:
     )
 
 
+@circuit_breaker
 def __valid_password(password: str) -> dict:
     url_api = WS_SCORING_PASSWORD_URL_API
 
@@ -43,7 +52,7 @@ def __valid_password(password: str) -> dict:
     min_length = RULE_PASSWORD_MIN_LENGTH
     max_length = RULE_PASSWORD_MAX_LENGTH
     min_accepted_score = RULE_PASSWORD_MIN_STRENGTH_SCORE
-    # TODO add the resilient pattern for external API calls.
+
     return PasswordValidator.is_valid_password(
         url_api=url_api,
         password=password,
@@ -87,8 +96,16 @@ def validate_account(username: str, email: str, password: str) -> dict:
         }
     email = email_check["email"]
 
-    # Validation of the input password: format + strength
-    password_score = __valid_password(password)
+    try:
+        # Validation of the input password: format + strength
+        password_score = __valid_password(password)
+    except CircuitBreaker.Error:
+        # return JsonResponse({"error": "Service temporarily unavailable. Please try again later."}, status=503)
+        return {
+            "email": email,
+            "status": True,
+            "status-code": __RESPONSE_STATUS_200,
+        }
     if not password_score["status"]:
         return {
             "status": False,

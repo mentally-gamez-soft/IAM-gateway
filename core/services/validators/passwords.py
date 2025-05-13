@@ -3,7 +3,9 @@
 import json
 
 import requests
+from tenacity import retry, stop_after_attempt, wait_exponential
 
+from config.default import RETRY_CALLS, WS_SCORING_PASSWORD_URL_API
 from core import app
 
 
@@ -11,6 +13,10 @@ class PasswordValidator:
     """Declare the validator for the password."""
 
     @staticmethod
+    @retry(
+        stop=stop_after_attempt(RETRY_CALLS),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     def is_valid_password(
         url_api: str,
         password: str,
@@ -51,7 +57,7 @@ class PasswordValidator:
                 "message": "The password is empty !",
             }
 
-        url_api = app.config["API_PWD"]
+        url_api = WS_SCORING_PASSWORD_URL_API
 
         payload = {
             "password": password,
@@ -67,7 +73,18 @@ class PasswordValidator:
             "min_accepted_score": min_accepted_score,
         }
 
-        response = requests.post(url_api, json=payload, timeout=5)
+        try:
+            response = requests.post(url_api, json=payload, timeout=5)
+        except requests.RequestException:
+            return {
+                "status": True,
+                "status-code": 200,
+                "message": (
+                    "The scoring service is unavailable, the password cannot"
+                    " be scored !"
+                ),
+            }
+
         status_code = response.status_code
         message = json.loads(response.text)
 
