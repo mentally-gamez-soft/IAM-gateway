@@ -246,6 +246,18 @@ wheels = [
 ]
 
 [[package]]
+name = "flask-swagger-ui"
+version = "5.21.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flask" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/8c/b64b382a061d0c383fdb4c01c4d95b697a5b36a368097108613afae19506/flask_swagger_ui-5.21.0.tar.gz", hash = "sha256:872d038dc11a68eacab88f6f05be3c533aa300453e273775dad3e029b31e03d4", size = 1634350, upload-time = "2025-05-14T10:42:09.386Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/94/7cbe53a11c2e36b562320b698605ac642951ac2662e6192f6385e9956955/flask_swagger_ui-5.21.0-py3-none-any.whl", hash = "sha256:5ecff6c284d7c5559f3473bd534a31fa5dfc0022502d63f4a04728c2b10596f6", size = 1650295, upload-time = "2025-05-14T10:42:07.043Z" },
+]
+
+[[package]]
 name = "flask-wtf"
 version = "1.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -315,6 +327,7 @@ dependencies = [
     { name = "flask-mail" },
     { name = "flask-migrate" },
     { name = "flask-sqlalchemy" },
+    { name = "flask-swagger-ui" },
     { name = "flask-wtf" },
     { name = "pre-commit" },
     { name = "psycopg2" },
@@ -335,6 +348,7 @@ requires-dist = [
     { name = "flask-mail", specifier = "~=0.10.0" },
     { name = "flask-migrate", specifier = "~=4.1.0" },
     { name = "flask-sqlalchemy", specifier = "~=3.1.1" },
+    { name = "flask-swagger-ui", specifier = ">=5.21.0" },
     { name = "flask-wtf", specifier = "~=1.2.2" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "psycopg2", specifier = "~=2.9.10" },

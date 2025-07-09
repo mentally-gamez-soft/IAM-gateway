@@ -45,7 +45,7 @@ def extract_jwt():
         Exception: The header Authorization is not available in the request.
 
     Returns:
-        str: Bearer auth toekn.
+        str: Bearer auth token.
     """
     # Gets token from request header and tries to get it's payload
     # Will raise errors if token is missing, invalid or expired

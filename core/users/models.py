@@ -7,12 +7,16 @@ from flask_login import UserMixin
 from sqlalchemy.dialects.postgresql import UUID
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from core import db
+from core import db, get_session_with_schema
 
 
 class GwUserRole(db.Model):
     """Declare the model for the available roles."""
 
+    __table_args__ = {
+        "schema": "per_environment",
+        "comment": "Define the role of the user.",
+    }
     __tablename__ = "gw_user_role"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -34,15 +38,19 @@ class GwUserRole(db.Model):
         self.created_on = arrow.utcnow().datetime
 
     def save(self):
-        """Save an instance of a user in the database."""
+        """Save an instance of a user role in the database."""
         if not self.id:
-            db.session.add(self)
-        db.session.commit()
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()
 
 
 class GwUser(db.Model, UserMixin):
     """Declare the user model class."""
 
+    __table_args__ = {
+        "schema": "per_environment",
+        "comment": "Define the properties of the user.",
+    }
     __tablename__ = "gw_user"
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -84,7 +92,9 @@ class GwUser(db.Model, UserMixin):
         Args:
             password (str): the chosen password.
         """
-        self.password = generate_password_hash(password)
+        self.password = generate_password_hash(
+            password=password, salt_length=25
+        )
 
     def check_password(self, password):
         """Control that a given password is correct.
@@ -100,8 +110,8 @@ class GwUser(db.Model, UserMixin):
     def save(self):
         """Save an instance of a user in the database."""
         if not self.id:
-            db.session.add(self)
-        db.session.commit()
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()
 
     @staticmethod
     def add_role_to_user_by_id(user_id, role):
@@ -113,8 +123,8 @@ class GwUser(db.Model, UserMixin):
         """
         gw_user_role = GwUserRole(user_id, role)
         if not gw_user_role.id:
-            db.session.add(gw_user_role)
-        db.session.commit()
+            get_session_with_schema().add(gw_user_role)
+        get_session_with_schema().commit()
 
     def __repr__(self):
         """Set the representation of an instance of a user.
@@ -152,9 +162,9 @@ class GwUser(db.Model, UserMixin):
         """Mark a user as deleted."""
         self.deleted = True
         self.deactivated_on = arrow.utcnow().datetime
-        db.session.commit()
+        get_session_with_schema().commit()
 
-    def is_active(self):
+    def is_active(self) -> bool:
         """Check if a user is active.
 
         Returns:
@@ -175,7 +185,7 @@ class GwUser(db.Model, UserMixin):
         gw_user = GwUser.query.get(id)
         gw_user.active = True
         gw_user.activated_on = arrow.utcnow().datetime
-        db.session.commit()
+        get_session_with_schema().commit()
 
         return gw_user
 
@@ -218,4 +228,4 @@ class GwUser(db.Model, UserMixin):
             activation_token (str): one time activation token.
         """
         GwUser.get_by_id(id).last_activation_token = activation_token
-        db.session.commit()
+        get_session_with_schema().commit()

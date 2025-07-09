@@ -12,6 +12,7 @@ if not load_dotenv(join(ENV_DIR, ".env.testing")):
     raise Exception("Failed to load .env.testing file !!!")
 
 SQL_ALCHEMY_DATABASE_URI = env.get("SQL_ALCHEMY_DATABASE_URI")
+SQLALCHEMY_DATABASE_SCHEMA = env.get("SQL_ALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_TESTING
 DEBUG = True
 TESTING = True

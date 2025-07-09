@@ -9,7 +9,9 @@ from os.path import abspath, dirname, join
 
 from dotenv import load_dotenv
 
+# Define the application directory
 BASE_DIR = dirname(dirname(abspath(__file__)))
+
 ENV_DIR = join(BASE_DIR, "config")
 JWT_ENV_DIR = join(ENV_DIR, "jwt")
 APIS_ENV_DIR = join(ENV_DIR, "external_ws_apis")
@@ -17,40 +19,59 @@ APIS_ENV_DIR = join(ENV_DIR, "external_ws_apis")
 if not load_dotenv(join(ENV_DIR, ".env")):
     raise Exception("Failed to load .env file !!!")
 
+# Application information
+APP_NAME = env.get("APP_NAME", "MyApp")
+APP_VERSION = env.get("APP_VERSION", "0.0.1")
+APP_USES_DATABASE = env.get("APP_USES_DATABASE", "True").lower() == "true"
+APP_SEND_EMAILS = env.get("APP_SEND_EMAILS", "True").lower() == "true"
+
+# logs files directories
+LOG_PATH = join(BASE_DIR, env.get("LOG_PATH", "logs"))
+LOG_FILENAME = env.get("LOG_FILENAME", "app.log")
+
 SECRET_KEY = env.get("SECRET_KEY")
 SECURITY_PASSWORD_SALT = env.get("SECURITY_PASSWORD_SALT")
 SQLALCHEMY_TRACK_MODIFICATIONS = (
     env.get("SQLALCHEMY_TRACK_MODIFICATIONS") == "True"
 )
 
+# File uploads management
+MAX_FILE_SIZE = env.get("MAX_FILE_SIZE", 16)  # defaults to 16 MB
+MEDIA_DIR = join(BASE_DIR, env.get("MEDIA_DIR", "media"))
+UPLOAD_DIR = join(MEDIA_DIR, env.get("UPLOAD_DIR", "uploads"))
+
 # application environments
-APP_ENV_LOCAL = "local"
-APP_ENV_TESTING = "testing"
-APP_ENV_DEVELOPMENT = "development"
-APP_ENV_STAGING = "staging"
-APP_ENV_PRODUCTION = "production"
+APP_ENV_LOCAL = env.get("APP_ENV_LOCAL")
+APP_ENV_TESTING = env.get("APP_ENV_TESTING")
+APP_ENV_DEVELOPMENT = env.get("APP_ENV_DEVELOPMENT")
+APP_ENV_STAGING = env.get("APP_ENV_STAGING")
+APP_ENV_PRODUCTION = env.get("APP_ENV_PRODUCTION")
 APP_ENV = ""
 
 # Email configuration
-MAIL_SERVER = env.get("MAIL_SERVER")
-MAIL_PORT = env.get("MAIL_PORT")
-MAIL_USERNAME = env.get("MAIL_USERNAME")
-MAIL_PASSWORD = env.get("MAIL_PASSWORD")
-DONT_REPLY_FROM_EMAIL = env.get("DONT_REPLY_FROM_EMAIL")
-ADMINS = env.get("ADMINS")
-MAIL_USE_TLS = True
-MAIL_DEBUG = env.get("MAIL_DEBUG") == "True"
+if APP_SEND_EMAILS:
+    EMAIL_SERVER = env.get("EMAIL_SERVER")
+    EMAIL_PORT = env.get("EMAIL_PORT")
+    EMAIL_USERNAME = env.get("EMAIL_USERNAME")
+    EMAIL_PASSWORD = env.get("EMAIL_PASSWORD")
+    DONT_REPLY_FROM_EMAIL = tuple(env.get("DONT_REPLY_FROM_EMAIL").split(","))
+    ADMINS = tuple(env.get("ADMINS").split(","))
+    EMAIL_USE_TLS = env.get("EMAIL_USE_TLS") == "True"
+    EMAIL_DEBUG = env.get("EMAIL_DEBUG") == "True"
 
 # pagination
-ITEMS_PER_PAGE = 10
+ITEMS_PER_PAGE = 15
 
 DEBUG = False
+TESTING = False
+WTF_CSRF_ENABLED = True
 
 # ###############  JWT ENCODINGS #########################
 if not load_dotenv(join(JWT_ENV_DIR, ".env.jwt")):
     raise Exception("Failed to load .env.jwt file !!!")
 ENCODING = env.get("ENCODING")
 JWT_ALG = env.get("JWT_ALG")
+JWT_EXPIRATION_TIME = env.get("JWT_EXPIRATION_TIME")
 JWT_ENCODING_PARAM_1 = env.get("JWT_ENCODING_PARAM_1")
 JWT_ENCODING_PARAM_2 = env.get("JWT_ENCODING_PARAM_2")
 JWT_ENCODING_PARAM_3 = env.get("JWT_ENCODING_PARAM_3")
@@ -77,7 +98,9 @@ RULE_PASSWORD_MIN_LENGTH = env.get("RULE_PASSWORD_MIN_LENGTH")
 RULE_PASSWORD_MAX_LENGTH = env.get("RULE_PASSWORD_MAX_LENGTH")
 RULE_PASSWORD_MIN_STRENGTH_SCORE = env.get("RULE_PASSWORD_MIN_STRENGTH_SCORE")
 
-# Resilient pattern params for external APIs and WS
-CIRCUIT_BREAK_MAX_FAIL = 5
-CIRCUIT_BREAK_RESET_TIMEOUT = 120
-RETRY_CALLS = 3
+# Resilience pattern params for external APIs and WS
+CIRCUIT_BREAKER_MAX_FAIL = int(env.get("CIRCUIT_BREAKER_MAX_FAIL", 5))
+CIRCUIT_BREAKER_RESET_TIMEOUT = int(
+    env.get("CIRCUIT_BREAKER_RESET_TIMEOUT", 120)
+)
+RETRY_CALLS = int(env.get("RETRY_CALLS", 3))

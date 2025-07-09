@@ -10,6 +10,22 @@ from wtforms import (
 from wtforms.validators import DataRequired, Email, Length
 
 
+class LoginForm(FlaskForm):
+    """Declare the form for a user to log in.
+
+    Args:
+        FlaskForm (_type_): The form that will be checked.
+    """
+
+    email = EmailField("Email", validators=[DataRequired(), Email()])
+    password = PasswordField(
+        "Password",
+        validators=[
+            DataRequired(),
+        ],
+    )
+
+
 class SignupForm(FlaskForm):
     """Declare the form class for users management."""
 
