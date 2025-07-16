@@ -36,17 +36,23 @@ A set of tools is provided to help you to create, run and stop the docker contai
 ### Swagger documentations
     The swagger UI is located at "/swagger"
 
+## Display environment variables
+    display all env variables:
+    gci env:* | sort-object name
+
 ## Set the environment variables
 
     On unix OS:
      - export FLASK_APP="application"
      - export FLASK_ENV="development"
      - export APP_SETTINGS_MODULE="config.local"
+     - export FLASK_DEBUG=1
 
     On Windows OS powershell:
      - $env:FLASK_APP="application"
      - $env:FLASK_ENV="development"
      - $env:APP_SETTINGS_MODULE="config.local"
+     - $env:FLASK_DEBUG = "1"
 
 ## Running application
 ## Local development
@@ -54,9 +60,7 @@ A set of tools is provided to help you to create, run and stop the docker contai
     uv run -m flask --app application run --port 3456 --host 0.0.0.0
 
 ### Executing the tests suit
-    uv run -m unittest tests.test_sanity_check_api
-    uv run -m unittest tests.test_translate_api
-    uv run -m unittest tests.services.test_translator_service
+    uv run -m unittest tests.test_standard_routes
 
 ## Docker Images
 ### Create an image
@@ -79,3 +83,5 @@ A set of tools is provided to help you to create, run and stop the docker contai
 
     On windows OS:
     execute the shell ./docker_manager.ps1 choose option (3) and follow the instructions.
+
+Gateway-IAM-Proxy/v1.0.0a/login

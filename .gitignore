@@ -170,3 +170,5 @@ requirements*.txt
 # fichiers .env
 .env*
 *.env
+
+migrations/*

@@ -88,7 +88,7 @@ def configure_logging(app):
     # -------------------------------------------------------------------
     # Creation of a filelog handler
     # -------------------------------------------------------------------
-    file_handler = logging.handlers.FileHandler(
+    file_handler = logging.FileHandler(
         filename=join(
             app.config.get("LOG_PATH"), app.config.get("LOG_FILENAME")
         ),

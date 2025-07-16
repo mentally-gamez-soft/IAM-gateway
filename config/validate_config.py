@@ -29,7 +29,7 @@ def validate_env_config(app_config: Config):
                 "DB_HOSTNAME",
                 "DB_PORT",
                 "DB_NAME",
-                "SQL_ALCHEMY_DATABASE_URI",
+                "SQLALCHEMY_DATABASE_URI",
                 "SQLALCHEMY_DATABASE_SCHEMA",
             ]
         )
@@ -72,6 +72,13 @@ def validate_env_config(app_config: Config):
     ]
 
     required_vars.extend(gw_required_vars)
+    required_vars.extend(resilience_required_vars)
+
+    print(required_vars)
+    print(
+        "============================================================================================================"
+    )
+    print(app_config)
 
     missing_vars = [var for var in required_vars if not app_config.get(var)]
 

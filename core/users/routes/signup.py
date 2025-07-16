@@ -1,6 +1,7 @@
 """Define the routes for user to sign up."""
 
 import logging
+from os import environ as env
 
 from flask import current_app, jsonify, request
 from flask_login import current_user, login_user
@@ -14,7 +15,9 @@ from config.default import (
     SECRET_KEY,
     SECURITY_PASSWORD_SALT,
 )
+from core.auth.api_endpoint_statistics import count_api_calls
 from core.auth.generic_encoder_decoder import encode_as_base64
+from core.auth.jwt.jwt_handler import initiate_session_jwt
 from core.auth.middlewares.validation_token import generate_activation_token
 from core.common.credentials_validator import validate_account
 from core.common.error_codes import (
@@ -31,15 +34,25 @@ from core.common.tools import get_duration_in_minutes
 from core.users import users_bp
 from core.users.forms import SignupForm
 from core.users.models import GwUser
-from core.users.routes import ROUTE_SIGNUP, initiate_session_jwt
 
 logger = logging.getLogger(__name__)
+
+API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
+API_PREFIX: str = "/{}/api/".format(API_TITLE)
+API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
+BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
+ROUTE_SIGNUP: str = "".join([BASE_ROUTE, "/signup"])
 
 
 @users_bp.route(
     ROUTE_SIGNUP,
     methods=("POST",),
 )
+@users_bp.route(
+    "/signup",
+    methods=("POST",),
+)
+@count_api_calls
 def signup():
     """Define the signup endpoint."""
     if current_user.is_authenticated:
@@ -179,7 +192,7 @@ def signup():
                     JWT_ENCODING_PARAM_3: user.email,
                 },
                 lifetime_in_minutes=get_duration_in_minutes(
-                    duration=JWT_EXPIRATION_TIME
+                    duration=int(JWT_EXPIRATION_TIME)
                 ),
             )
             user.jwt_session_id = jwt_token

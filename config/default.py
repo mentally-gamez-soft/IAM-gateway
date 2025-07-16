@@ -64,6 +64,7 @@ ITEMS_PER_PAGE = 15
 
 DEBUG = False
 TESTING = False
+LOCAL_DEV = False
 WTF_CSRF_ENABLED = True
 
 # ###############  JWT ENCODINGS #########################

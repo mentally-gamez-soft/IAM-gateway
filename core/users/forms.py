@@ -24,6 +24,7 @@ class LoginForm(FlaskForm):
             DataRequired(),
         ],
     )
+    remember_me = BooleanField("Remember me")
 
 
 class SignupForm(FlaskForm):
