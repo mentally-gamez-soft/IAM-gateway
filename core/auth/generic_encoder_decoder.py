@@ -1,10 +1,13 @@
 """Define a common library for encoding/decoding jwt."""
 
+import logging
 import zlib
 
 from itsdangerous import base64_decode, base64_encode
 
 from config.default import ENCODING
+
+logger = logging.getLogger(__name__)
 
 
 def encode_as_base64(payload: str) -> bytes:
@@ -28,4 +31,10 @@ def decode_as_base64(payload: str) -> bytes:
     Returns:
         bytes:  the decoded message.
     """
-    return zlib.decompress(base64_decode(payload)).decode()
+    result: str = None
+    try:
+        result = zlib.decompress(base64_decode(payload)).decode()
+    except Exception as exc:
+        logger.error("Error when reading the user id => {}".format(exc))
+
+    return result

@@ -1,18 +1,25 @@
 """Defines the models for the users module."""
 
 import uuid
+from os import environ as env
+from typing import List
 
 import arrow
 from flask_login import UserMixin
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from core import db
+from core import db, get_session_with_schema
 
 
 class GwUserRole(db.Model):
     """Declare the model for the available roles."""
 
+    __table_args__ = {
+        # "schema": "per_environment",
+        "comment": "Define the role of the user.",
+    }
     __tablename__ = "gw_user_role"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -34,31 +41,35 @@ class GwUserRole(db.Model):
         self.created_on = arrow.utcnow().datetime
 
     def save(self):
-        """Save an instance of a user in the database."""
+        """Save an instance of a user role in the database."""
         if not self.id:
-            db.session.add(self)
-        db.session.commit()
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()
 
 
 class GwUser(db.Model, UserMixin):
     """Declare the user model class."""
 
+    __table_args__ = {
+        # "schema": "per_environment",
+        "comment": "Define the properties of the user.",
+    }
     __tablename__ = "gw_user"
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username = db.Column(db.String(30), unique=True, nullable=False)
     email = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(50), nullable=False)
+    password = db.Column(db.String(500), nullable=False)
     created_on = db.Column(db.DateTime, nullable=False)
     last_activation_token = db.Column(
-        db.String(500), unique=False, nullable=True
+        db.String(100), unique=False, nullable=True
     )
     active = db.Column(db.Boolean, nullable=False, default=False)
     activated_on = db.Column(db.DateTime, nullable=True)
     deactivated_on = db.Column(db.DateTime, nullable=True)
     jwt_session_id = db.Column(db.String(500), nullable=True)
     deleted = db.Column(db.Boolean, nullable=False, default=False)
-    roles = db.relationship(
+    roles: Mapped[List["GwUserRole"]] = db.relationship(
         "GwUserRole",
         backref="gwuser",
         lazy=True,
@@ -67,7 +78,7 @@ class GwUser(db.Model, UserMixin):
     )
     is_admin = db.Column(db.Boolean, default=False)
 
-    def __init__(self, username, email, role):
+    def __init__(self, username, email):
         """Declare constructor for User.
 
         Args:
@@ -84,7 +95,9 @@ class GwUser(db.Model, UserMixin):
         Args:
             password (str): the chosen password.
         """
-        self.password = generate_password_hash(password)
+        self.password = generate_password_hash(
+            password=password, salt_length=25
+        )
 
     def check_password(self, password):
         """Control that a given password is correct.
@@ -100,8 +113,8 @@ class GwUser(db.Model, UserMixin):
     def save(self):
         """Save an instance of a user in the database."""
         if not self.id:
-            db.session.add(self)
-        db.session.commit()
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()
 
     @staticmethod
     def add_role_to_user_by_id(user_id, role):
@@ -113,8 +126,8 @@ class GwUser(db.Model, UserMixin):
         """
         gw_user_role = GwUserRole(user_id, role)
         if not gw_user_role.id:
-            db.session.add(gw_user_role)
-        db.session.commit()
+            get_session_with_schema().add(gw_user_role)
+        get_session_with_schema().commit()
 
     def __repr__(self):
         """Set the representation of an instance of a user.
@@ -152,9 +165,9 @@ class GwUser(db.Model, UserMixin):
         """Mark a user as deleted."""
         self.deleted = True
         self.deactivated_on = arrow.utcnow().datetime
-        db.session.commit()
+        get_session_with_schema().commit()
 
-    def is_active(self):
+    def is_active(self) -> bool:
         """Check if a user is active.
 
         Returns:
@@ -175,7 +188,7 @@ class GwUser(db.Model, UserMixin):
         gw_user = GwUser.query.get(id)
         gw_user.active = True
         gw_user.activated_on = arrow.utcnow().datetime
-        db.session.commit()
+        get_session_with_schema().commit()
 
         return gw_user
 
@@ -196,7 +209,7 @@ class GwUser(db.Model, UserMixin):
         """
         user = GwUser.get_by_id(id)
         if user:
-            return user.roles
+            return [role.role for role in user.roles]
         return []
 
     @staticmethod
@@ -208,8 +221,7 @@ class GwUser(db.Model, UserMixin):
         """
         return GwUser.get_by_id(id).active
 
-    staticmethod
-
+    @staticmethod
     def reset_activation_token_by_id(id: UUID, activation_token: str):
         """Set the last activation token for the user.
 
@@ -218,4 +230,55 @@ class GwUser(db.Model, UserMixin):
             activation_token (str): one time activation token.
         """
         GwUser.get_by_id(id).last_activation_token = activation_token
-        db.session.commit()
+        get_session_with_schema().commit()
+
+
+class StatsApiEndpoints(db.Model):
+    """Declare the model for the statistic on endpoints calls."""
+
+    __table_args__ = {
+        # "schema": "per_environment",
+        "comment": "Define the statistic for the calls of endpoints.",
+    }
+    __tablename__ = "stats_api_endpoints"
+
+    id = db.Column(db.Integer, primary_key=True)
+    count = db.Column(db.Integer, nullable=False, default=1)
+    endpoint_url = db.Column(db.String(500), unique=True, nullable=False)
+
+    @staticmethod
+    def get_api_endpoint(api_endpoint) -> "StatsApiEndpoints":
+        """Retrieve an endpoint.
+
+        Args:
+            api_endpoint (str): the api endpoint.
+
+        Returns:
+            StatsApiEndpoints: An instance of stat endpoint.
+        """
+        return StatsApiEndpoints.query.filter_by(
+            endpoint_url=api_endpoint
+        ).first()
+
+    @staticmethod
+    def increment_counter_api_endpoint(api_endpoint) -> "StatsApiEndpoints":
+        """Increment the call number counter of an endpoint.
+
+        Args:
+            api_endpoint (str): the api endpoint.
+
+        Returns:
+            StatsApiEndpoints: An instance of stat endpoint.
+        """
+        stats_end_point = StatsApiEndpoints.get_api_endpoint(api_endpoint)
+        if stats_end_point:
+            stats_end_point.count = stats_end_point.count + 1
+        else:
+            stats_end_point = StatsApiEndpoints(endpoint_url=api_endpoint)
+        stats_end_point.save()
+
+    def save(self):
+        """Save an instance of a stats endpoints in the database."""
+        if not self.id:
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()

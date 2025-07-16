@@ -3,8 +3,8 @@
 from pybreaker import CircuitBreaker
 
 from config.default import (
-    CIRCUIT_BREAK_MAX_FAIL,
-    CIRCUIT_BREAK_RESET_TIMEOUT,
+    CIRCUIT_BREAKER_MAX_FAIL,
+    CIRCUIT_BREAKER_RESET_TIMEOUT,
     RULE_PASSWORD_MAX_LENGTH,
     RULE_PASSWORD_MIN_LENGTH,
     RULE_PASSWORD_MIN_STRENGTH_SCORE,
@@ -26,7 +26,8 @@ from core.services.validators.passwords import PasswordValidator
 from core.services.validators.usernames import UsernameValidator
 
 circuit_breaker = CircuitBreaker(
-    fail_max=CIRCUIT_BREAK_MAX_FAIL, reset_timeout=CIRCUIT_BREAK_RESET_TIMEOUT
+    fail_max=CIRCUIT_BREAKER_MAX_FAIL,
+    reset_timeout=CIRCUIT_BREAKER_RESET_TIMEOUT,
 )
 
 

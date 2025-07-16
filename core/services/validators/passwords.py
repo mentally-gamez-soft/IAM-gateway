@@ -6,7 +6,6 @@ import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from config.default import RETRY_CALLS, WS_SCORING_PASSWORD_URL_API
-from core import app
 
 
 class PasswordValidator:

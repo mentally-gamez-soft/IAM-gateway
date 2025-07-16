@@ -11,6 +11,11 @@ from .default import *
 if not load_dotenv(join(ENV_DIR, ".env.local")):
     raise Exception("Failed to load .env.local file !!!")
 
-SQL_ALCHEMY_DATABASE_URI = env.get("SQL_ALCHEMY_DATABASE_URI")
+DB_HOSTNAME = env.get("DB_HOSTNAME")
+DB_PORT = env.get("DB_PORT")
+DB_NAME = env.get("DB_NAME")
+SQLALCHEMY_DATABASE_URI = env.get("SQLALCHEMY_DATABASE_URI")
+SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_LOCAL
 DEBUG = True
+LOCAL_DEV = True
