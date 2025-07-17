@@ -25,13 +25,16 @@ A set of tools is provided to help you to create, run and stop the docker contai
     The check is located at home "/"
 
 ### Signup
-    The transations endpoint is located at "/signup"
+    The signup endpoint is located at "/signup"
 
 ### Login
-    The transations endpoint is located at "/login"
+    The login endpoint is located at "/login"
 
 ### Logout
-    The transations endpoint is located at "/logout"
+    The logout endpoint is located at "/logout"
+
+### Activation account
+    The activation account endpoint is located at "/confirm/<token>"
 
 ### Swagger documentations
     The swagger UI is located at "/swagger"
@@ -61,6 +64,11 @@ A set of tools is provided to help you to create, run and stop the docker contai
 
 ### Executing the tests suit
     uv run -m unittest tests.test_standard_routes
+
+### Executing database migrations:
+    flask --app application db init
+    flask --app application db migrate -m "initial migrations"
+    flask --app application db upgrade
 
 ## Docker Images
 ### Create an image

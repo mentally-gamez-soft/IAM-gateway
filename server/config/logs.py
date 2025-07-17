@@ -13,10 +13,10 @@ def set_logging_mail_handler(app, log_level) -> dict:
         log_level (str): The log level to set.
 
     Returns:
-        dict: contains the status True if the email looging is set and the handler.
+        dict: contains the status True if the email logging is set and the handler.
     """
-    result = {"status": False}
-    result = {"handler": None}
+    result = {"status": False,
+              "handler": None}
 
     if app.config["APP_SEND_EMAILS"]:
         mail_handler = SMTPHandler(
