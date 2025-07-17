@@ -18,7 +18,7 @@ A set of tools is provided to help you to create, run and stop the docker contai
 - docker-compose 1.29.2 or higher
 
 ## Stack Technologies
-![Alt text](technology_stack.svg)
+![Alt text](technology_stack_IAM-GW.svg)
 
 ## API Endpoints
 ### Sanity check
@@ -83,5 +83,3 @@ A set of tools is provided to help you to create, run and stop the docker contai
 
     On windows OS:
     execute the shell ./docker_manager.ps1 choose option (3) and follow the instructions.
-
-Gateway-IAM-Proxy/v1.0.0a/login
