@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from .default import *
 
-if not load_dotenv(join(ENV_DIR, ".env.prood")):
+if not load_dotenv(join(ENV_DIR, ".env.prod")):
     raise Exception("Failed to load .env.prod file !!!")
 
 DB_HOSTNAME = env.get("DB_HOSTNAME")

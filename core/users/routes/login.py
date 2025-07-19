@@ -84,7 +84,7 @@ def login():
             jwt_token = initiate_session_jwt(
                 payload={
                     JWT_ENCODING_PARAM_1: str(user.id),
-                    JWT_ENCODING_PARAM_2: user.roles,
+                    JWT_ENCODING_PARAM_2: GwUser.get_user_roles_by_id(user.id),
                     JWT_ENCODING_PARAM_3: user.email,
                 },
                 lifetime_in_minutes=get_duration_in_minutes(

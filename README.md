@@ -18,20 +18,23 @@ A set of tools is provided to help you to create, run and stop the docker contai
 - docker-compose 1.29.2 or higher
 
 ## Stack Technologies
-![Alt text](technology_stack.svg)
+![Alt text](technology_stack_IAM-GW.svg)
 
 ## API Endpoints
 ### Sanity check
     The check is located at home "/"
 
 ### Signup
-    The transations endpoint is located at "/signup"
+    The signup endpoint is located at "/signup"
 
 ### Login
-    The transations endpoint is located at "/login"
+    The login endpoint is located at "/login"
 
 ### Logout
-    The transations endpoint is located at "/logout"
+    The logout endpoint is located at "/logout"
+
+### Activation account
+    The activation account endpoint is located at "/confirm/<token>"
 
 ### Swagger documentations
     The swagger UI is located at "/swagger"
@@ -62,6 +65,11 @@ A set of tools is provided to help you to create, run and stop the docker contai
 ### Executing the tests suit
     uv run -m unittest tests.test_standard_routes
 
+### Executing database migrations:
+    flask --app application db init
+    flask --app application db migrate -m "initial migrations"
+    flask --app application db upgrade
+
 ## Docker Images
 ### Create an image
     On unix OS:
@@ -83,5 +91,3 @@ A set of tools is provided to help you to create, run and stop the docker contai
 
     On windows OS:
     execute the shell ./docker_manager.ps1 choose option (3) and follow the instructions.
-
-Gateway-IAM-Proxy/v1.0.0a/login

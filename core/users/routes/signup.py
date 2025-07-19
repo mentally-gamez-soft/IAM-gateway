@@ -103,6 +103,11 @@ def signup():
                 }
             ),
             check_account["status-code"],
+            {
+                "X-CSRFToken": generate_csrf(
+                    secret_key=current_app.config.get("SECRET_KEY")
+                )
+            },
         )
 
     if not form.validate():
@@ -114,41 +119,61 @@ def signup():
             return (
                 jsonify(
                     {
-                        "error": form.username.errors[0],
+                        "message": form.username.errors[0],
                         "status": __RESPONSE_STATUS_422,
                     }
                 ),
                 __RESPONSE_STATUS_422,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
             )
         elif form.email.errors:
             return (
                 jsonify(
                     {
-                        "error": form.email.errors[0],
+                        "message": form.email.errors[0],
                         "status": __RESPONSE_STATUS_422,
                     }
                 ),
                 __RESPONSE_STATUS_422,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
             )
         elif form.password.errors:
             return (
                 jsonify(
                     {
-                        "error": form.password.errors[0],
+                        "message": form.password.errors[0],
                         "status": __RESPONSE_STATUS_422,
                     }
                 ),
                 __RESPONSE_STATUS_422,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
             )
         elif form.role.errors:
             return (
                 jsonify(
                     {
-                        "error": form.role.errors[0],
+                        "message": form.role.errors[0],
                         "status": __RESPONSE_STATUS_422,
                     }
                 ),
                 __RESPONSE_STATUS_422,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
             )
 
     elif form.validate():
@@ -162,11 +187,16 @@ def signup():
             return (
                 jsonify(
                     {
-                        "error": __USER_WITH_EMAIL_ALREADY_EXISTS,
+                        "message": __USER_WITH_EMAIL_ALREADY_EXISTS,
                         "status": __RESPONSE_STATUS_422,
                     }
                 ),
                 __RESPONSE_STATUS_422,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
             )
         else:
             user = GwUser(username=username, email=check_account["email"])
@@ -187,8 +217,8 @@ def signup():
 
             jwt_token = initiate_session_jwt(
                 payload={
-                    JWT_ENCODING_PARAM_1: user.id,
-                    JWT_ENCODING_PARAM_2: user.roles,
+                    JWT_ENCODING_PARAM_1: str(user.id),
+                    JWT_ENCODING_PARAM_2: GwUser.get_user_roles_by_id(user.id),
                     JWT_ENCODING_PARAM_3: user.email,
                 },
                 lifetime_in_minutes=get_duration_in_minutes(
@@ -203,9 +233,7 @@ def signup():
             jsonify(
                 {
                     "data": {
-                        "user": encode_as_base64(
-                            jwt_token[JWT_ENCODING_PARAM_1]
-                        ),
+                        "user": encode_as_base64(str(user.id)),
                         "jwt": jwt_token,
                     },
                     "status": __RESPONSE_STATUS_200,

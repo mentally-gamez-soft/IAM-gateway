@@ -1,5 +1,7 @@
 """Define the module to validate users inputs."""
 
+import logging
+
 from pybreaker import CircuitBreaker
 
 from config.default import (
@@ -24,6 +26,8 @@ from core.common.messages import __EMAIL_INVALID, __USERNAME_INVALID
 from core.services.validators.emails import EmailValidator
 from core.services.validators.passwords import PasswordValidator
 from core.services.validators.usernames import UsernameValidator
+
+logger = logging.getLogger(__name__)
 
 circuit_breaker = CircuitBreaker(
     fail_max=CIRCUIT_BREAKER_MAX_FAIL,
@@ -102,6 +106,9 @@ def validate_account(username: str, email: str, password: str) -> dict:
         password_score = __valid_password(password)
     except CircuitBreaker.Error:
         # return JsonResponse({"error": "Service temporarily unavailable. Please try again later."}, status=503)
+        logger.warning(
+            "Impossible to call the external service for email scoring. Fall back to a score always valid."
+        )
         return {
             "email": email,
             "status": True,
