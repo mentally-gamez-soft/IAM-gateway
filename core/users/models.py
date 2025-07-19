@@ -150,6 +150,18 @@ class GwUser(db.Model, UserMixin):
         return GwUser.query.get(id)
 
     @staticmethod
+    def get_number_of_users_by_email(email: str) -> int:
+        """Retrieve the number of users with a given email.
+
+        Args:
+            email (str): the email of a user.
+
+        Returns:
+            int: The number of users with the given email.
+        """
+        return GwUser.query.filter_by(email=email).count()
+
+    @staticmethod
     def get_by_email(email) -> "GwUser":
         """Retrieve a user according to its email.
 

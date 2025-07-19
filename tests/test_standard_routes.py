@@ -15,6 +15,7 @@ class BlogClientTestCase(BaseTestClass):
     __LOGIN_LOGOUT_ENDPOINTS__: bool = True
     __STATISTICS_ENDPOINTS__: bool = True
     __EMAIL_ACTIVATION_TOKEN_ENDPOINTS__: bool = True
+    __SIGNUP_ENDPOINTS__: bool = True
 
     @unittest.skipIf(
         __SKIP_ALL__, "Deactivate to execute latest created test."
@@ -687,3 +688,67 @@ class BlogClientTestCase(BaseTestClass):
         with self.app.app_context():
             user = GwUser.get_by_email(email)
             self.assertTrue(user.is_active())
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    @unittest.skipUnless(
+        __SIGNUP_ENDPOINTS__, "Family of tests for the signup endpoints."
+    )
+    def test_signup_new_user(self):
+        username = "new_user"
+        role = "Guest"
+        email = "new_user@example.com"
+        password = "password123"
+
+        payload = {
+            "username": username,
+            "role": role,
+            "email": email,
+            "password": password,
+        }
+        # Access to endpoint
+        res = self.client.post("/signup", json=payload)
+        data = json.loads(res.data)
+
+        self.assertEqual(200, res.status_code)
+        self.assertIn("X-CSRFToken", res.headers)
+        self.assertIn("You successfully signed up.", data.get("message"))
+
+        # Validate that user is created
+        with self.app.app_context():
+            user = GwUser.get_by_email(email)
+            self.assertIsNotNone(user)
+            self.assertFalse(user.is_active())
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    @unittest.skipUnless(
+        __SIGNUP_ENDPOINTS__, "Family of tests for the signup endpoints."
+    )
+    def test_signup_when_user_already_exists(self):
+        username = "guest_non_active"
+        role = "Guest"
+        email = "guest_non_active@xyz.com"
+        password = "password123"
+
+        payload = {
+            "username": username,
+            "role": role,
+            "email": email,
+            "password": password,
+        }
+        # Access to endpoint
+        res = self.client.post("/signup", json=payload)
+        data = json.loads(res.data)
+
+        self.assertEqual(422, res.status_code)
+        self.assertIn("X-CSRFToken", res.headers)
+        self.assertIn(
+            "A user already exists for this email !", data.get("message")
+        )
+
+        # Validate that user is not created
+        with self.app.app_context():
+            self.assertEqual(1, GwUser.get_number_of_users_by_email(email))

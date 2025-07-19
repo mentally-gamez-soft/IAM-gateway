@@ -18,3 +18,4 @@ python-usernames>=1.0.0
 PyJWT~=2.10.1
 sqlalchemy~=2.0.40
 tenacity~=9.1.2
+requests>=2.32.3
