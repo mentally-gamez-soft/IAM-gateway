@@ -64,6 +64,38 @@ A set of tools is provided to help you to create, run and stop the docker contai
     Token rotation: Old refresh tokens are marked with replaced_by relationship
     Family ID tracking: Detects and prevents token reuse attacks
 
+## Structured JSON Logging (US-004)
+
+The application supports two log output formats controlled by the `LOG_FORMAT` environment variable:
+
+| `LOG_FORMAT` | Environments | Output |
+|---|---|---|
+| `text` (default) | local, dev, testing | Human-readable coloured text |
+| `json` | staging, production | Structured JSON, one object per line |
+
+### JSON log fields
+
+Every log entry in JSON mode includes:
+
+| Field | Description |
+|---|---|
+| `timestamp` | ISO 8601 UTC timestamp |
+| `level` | Log level name (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `logger` | Logger name |
+| `function` | Calling function name |
+| `lineno` | Source line number |
+| `environment` | Value of `APP_ENV` config |
+| `message` | Log message |
+| `request_id` | UUID from `X-Request-ID` header or auto-generated per request |
+| `user_id` | Authenticated user ID (null if anonymous) |
+| `remote_addr` | Client IP address |
+| `method` | HTTP method |
+| `path` | Request path |
+
+### Request ID propagation
+
+Pass `X-Request-ID: <uuid>` in the request header to correlate log entries with your upstream tracing system. If the header is absent, a UUID v4 is generated automatically and stored in `flask.g.request_id`.
+
 ### Swagger documentations
     The swagger UI is located at "/swagger"
 

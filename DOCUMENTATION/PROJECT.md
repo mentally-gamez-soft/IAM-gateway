@@ -1114,3 +1114,69 @@ gitgraph
 | TASK-001-3 | `config/default.py`, `config/dev.py`, `config/prod.py`, `config/local.py`, `config/testing.py`, `config/staging.py`, `config/validate_config.py` | Added `RATELIMIT_STORAGE_URI`, `RATE_LIMIT_LOGIN`, `RATE_LIMIT_SIGNUP`, `RATE_LIMIT_DEFAULT` to base config; added per-environment overrides; added validation of rate-limit vars in `validate_env_config` |
 | TASK-001-4 | `tests/test_rate_limiting.py` | Created 9 test cases covering: under-threshold success, over-threshold 429, response body structure, Retry-After header, config key presence, testing env using `memory://` backend |
 | TASK-001-5 | `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Added `redis:7-alpine` service with health check; added `depends_on` condition to app service; prod Redis configured with persistence and no external port exposure |
+---
+
+### US-002 — Password Reset / Forgot Password Flow
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-002-password-reset` |
+| **PR** | [#9](https://github.com/mentally-gamez-soft/IAM-gateway/pull/9) |
+| **Status** | Done / QA Testing |
+| **Merged** | 2026-02-18 |
+| **Trello** | [US-002](https://trello.com/c/FbsQV8hE) |
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-002-1 | `pyproject.toml`, `requirements.in`, `config/default.py` | Added `itsdangerous>=2.1.2` dependency; added `PASSWORD_RESET_TOKEN_MAX_AGE`, `RESET_PASSWORD_SALT` config variables |
+| TASK-002-2 | `core/users/routes/` | Added `/forgot-password` POST endpoint; generates time-limited reset token via `itsdangerous.URLSafeTimedSerializer`; sends reset-link email |
+| TASK-002-3 | `core/users/routes/` | Added `/reset-password/<token>` PUT endpoint; validates token expiry; hashes and saves new password; revokes existing JWT session |
+| TASK-002-4 | `config/*.py` | Added per-environment overrides for `PASSWORD_RESET_TOKEN_MAX_AGE` and `RESET_PASSWORD_SALT` |
+| TASK-002-5 | `tests/test_password_reset.py` | Created test suite covering token generation, expiry, password update, and invalid-token rejection |
+
+---
+
+### US-003 — Refresh Token Mechanism
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-003-refresh-token` |
+| **PR** | [#10](https://github.com/mentally-gamez-soft/IAM-gateway/pull/10) |
+| **Status** | Done / QA Testing |
+| **Merged** | 2026-02-18 |
+| **Trello** | [US-003](https://trello.com/c/FbsQV8hE) |
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-003-1 | `core/users/models.py`, `migrations/` | Added `RefreshToken` model with `token`, `user_id`, `family_id`, `expires_at`, `revoked` fields; generated Alembic migration |
+| TASK-003-2 | `core/auth/jwt/jwt_handler.py` | Added `generate_refresh_token()` and `verify_refresh_token()` functions; refresh tokens signed with a dedicated secret and 7-day expiry |
+| TASK-003-3 | `core/users/routes/` | Added `/token/refresh` POST endpoint; verifies refresh token; rotates token (issues new access + refresh token pair); revokes old token; implements family-based revocation on reuse detection |
+| TASK-003-4 | `core/users/routes/login.py`, `core/users/routes/logout.py` | Login now returns both `access_token` and `refresh_token`; logout revokes both tokens from DB |
+| TASK-003-5 | `config/default.py`, `config/*.py` | Added `REFRESH_TOKEN_SECRET_KEY`, `REFRESH_TOKEN_EXPIRES_DAYS` to all environment configs |
+| TASK-003-6 | `tests/test_refresh_token.py` | 20-test suite covering token issuance, rotation, expiry, family-revocation on reuse, and logout invalidation |
+
+---
+
+### US-004 — Structured JSON Logging
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-004-structured-json-logging` |
+| **PR** | [#11](https://github.com/mentally-gamez-soft/IAM-gateway/pull/11) |
+| **Status** | Done / QA Testing |
+| **Merged** | 2026-02-18 |
+| **Trello** | [US-004](https://trello.com/c/FbsQV8hE) |
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-004-1 | `pyproject.toml`, `requirements.in`, `config/default.py` | Added `python-json-logger>=2.0.7` dependency; added `LOG_FORMAT` config variable (default `"text"`) controlling formatter selection |
+| TASK-004-2 | `server/config/logs.py` | Implemented `JsonLogFormatter(jsonlogger.JsonFormatter)` — overrides `add_fields()` to emit ISO 8601 UTC timestamp, level, logger, function, lineno, environment, request_id, user_id, remote_addr, method, path as a flat JSON object |
+| TASK-004-3 | `server/config/logs.py`, `core/__init__.py` | Implemented `RequestContextFilter(logging.Filter)` that injects request metadata into every log record; added `@app.before_request` hook `inject_request_id()` that reads `X-Request-ID` header or generates a UUID4 stored in `flask.g.request_id` |
+| TASK-004-4 | `config/local.py`, `config/dev.py`, `config/testing.py`, `config/staging.py`, `config/prod.py` | Set `LOG_FORMAT = "text"` in local/dev/testing; `LOG_FORMAT = "json"` in staging/prod |
+| TASK-004-5 | `tests/test_logging.py` | 20-test suite across 5 classes: `TestJsonLogFormatter` (8), `TestTextLogFormatter` (1), `TestRequestContextFilter` (3), `TestRequestContextFilterInFlask` (3), `TestEnvironmentSpecificLogFormats` (5) |
