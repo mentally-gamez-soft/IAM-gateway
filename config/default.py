@@ -107,3 +107,8 @@ CIRCUIT_BREAKER_RESET_TIMEOUT = int(
     env.get("CIRCUIT_BREAKER_RESET_TIMEOUT", 120)
 )
 RETRY_CALLS = int(env.get("RETRY_CALLS", 3))
+
+################################################################
+# ### API with token auth. CSRF protection disabled   ##########
+################################################################
+WTF_CSRF_ENABLED = False
