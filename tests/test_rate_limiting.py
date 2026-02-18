@@ -3,10 +3,14 @@
 import json
 import unittest
 
-from core import create_app, db, limiter
-from core.users.models import GwUser, GwUserRole, StatsApiEndpoints
+from core import create_app, db
 
 from . import BaseTestClass
+
+# Non-existent user credentials — guaranteed to never authenticate,
+# so current_user.is_authenticated stays False throughout all rate-limit tests.
+_FAKE_EMAIL = "ratelimit_test_nonexistent@nowhere.invalid"
+_FAKE_PASSWORD = "ImpossiblePassword!99"
 
 
 class RateLimitingTestCase(BaseTestClass):
@@ -14,12 +18,28 @@ class RateLimitingTestCase(BaseTestClass):
 
     __SKIP_ALL__: bool = False
 
-    def setUp(self):
-        """Set up test fixtures and reset rate limit storage before each test."""
-        super().setUp()
-        # Reset all rate limit counters between tests
+    def _fresh_client(self):
+        """Return a new test client with an isolated cookie jar."""
+        return self.app.test_client()
+
+    def _reset_limiter(self):
+        """Reset all in-memory rate-limit counters (requires app context)."""
         with self.app.app_context():
+            from core import limiter
+
             limiter.reset()
+
+    def _override_limit(self, key: str, value: str):
+        """Override a rate-limit config value and return the original."""
+        with self.app.app_context():
+            original = self.app.config.get(key)
+            self.app.config[key] = value
+        return original
+
+    def _restore_limit(self, key: str, value):
+        """Restore a rate-limit config value to its original."""
+        with self.app.app_context():
+            self.app.config[key] = value
 
     # ---------------------------------------------------------------
     # /login rate limiting tests
@@ -27,11 +47,14 @@ class RateLimitingTestCase(BaseTestClass):
 
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_login_under_rate_limit_succeeds(self):
-        """Requests below the threshold should return 200 or 403 (not 429)."""
-        email = "guest_active@xyz.com"
-        password = "2222"
+        """Requests below the threshold should return a non-429 status."""
+        client = self._fresh_client()
+        self._reset_limiter()
         for _ in range(3):
-            res = self.login(email, password)
+            res = client.post(
+                "/login",
+                json={"email": _FAKE_EMAIL, "password": _FAKE_PASSWORD},
+            )
             self.assertNotEqual(
                 429,
                 res.status_code,
@@ -41,29 +64,20 @@ class RateLimitingTestCase(BaseTestClass):
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_login_exceeds_rate_limit_returns_429(self):
         """After exceeding RATE_LIMIT_LOGIN threshold, a 429 must be returned."""
-        email = "guest_active@xyz.com"
-        password = "wrong_password"
-
-        # RATE_LIMIT_LOGIN in testing config is "1000/minute".
-        # Override to a very small value for this test only.
-        with self.app.app_context():
-            original_limit = self.app.config.get("RATE_LIMIT_LOGIN")
-            self.app.config["RATE_LIMIT_LOGIN"] = "2/minute"
-            limiter.reset()
+        original = self._override_limit("RATE_LIMIT_LOGIN", "2/minute")
+        client = self._fresh_client()
+        self._reset_limiter()
 
         responses = []
         for _ in range(4):
             responses.append(
-                self.client.post(
+                client.post(
                     "/login",
-                    json=dict(email=email, password=password),
+                    json={"email": _FAKE_EMAIL, "password": _FAKE_PASSWORD},
                 )
             )
 
-        # Restore original limit
-        with self.app.app_context():
-            self.app.config["RATE_LIMIT_LOGIN"] = original_limit
-
+        self._restore_limit("RATE_LIMIT_LOGIN", original)
         status_codes = [r.status_code for r in responses]
         self.assertIn(
             429,
@@ -74,57 +88,45 @@ class RateLimitingTestCase(BaseTestClass):
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_login_429_response_has_correct_structure(self):
         """A 429 response body must contain 'message' and 'status' keys."""
-        with self.app.app_context():
-            original_limit = self.app.config.get("RATE_LIMIT_LOGIN")
-            self.app.config["RATE_LIMIT_LOGIN"] = "1/minute"
-            limiter.reset()
+        original = self._override_limit("RATE_LIMIT_LOGIN", "1/minute")
+        client = self._fresh_client()
+        self._reset_limiter()
 
-        # First request should pass (or fail auth, but not 429)
-        self.client.post(
-            "/login",
-            json=dict(email="x@x.com", password="wrong"),
+        client.post(
+            "/login", json={"email": _FAKE_EMAIL, "password": _FAKE_PASSWORD}
         )
-        # Second request must be rate-limited
-        res = self.client.post(
-            "/login",
-            json=dict(email="x@x.com", password="wrong"),
+        res = client.post(
+            "/login", json={"email": _FAKE_EMAIL, "password": _FAKE_PASSWORD}
         )
+        self._restore_limit("RATE_LIMIT_LOGIN", original)
 
-        with self.app.app_context():
-            self.app.config["RATE_LIMIT_LOGIN"] = original_limit
-
-        if res.status_code == 429:
-            data = json.loads(res.data)
-            self.assertIn("message", data)
-            self.assertIn("status", data)
-            self.assertEqual(429, data["status"])
+        self.assertEqual(429, res.status_code)
+        data = json.loads(res.data)
+        self.assertIn("message", data)
+        self.assertIn("status", data)
+        self.assertEqual(429, data["status"])
 
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_login_429_response_has_retry_after_header(self):
         """A 429 response must include the Retry-After header."""
-        with self.app.app_context():
-            original_limit = self.app.config.get("RATE_LIMIT_LOGIN")
-            self.app.config["RATE_LIMIT_LOGIN"] = "1/minute"
-            limiter.reset()
+        original = self._override_limit("RATE_LIMIT_LOGIN", "1/minute")
+        client = self._fresh_client()
+        self._reset_limiter()
 
-        self.client.post(
-            "/login",
-            json=dict(email="x@x.com", password="wrong"),
+        client.post(
+            "/login", json={"email": _FAKE_EMAIL, "password": _FAKE_PASSWORD}
         )
-        res = self.client.post(
-            "/login",
-            json=dict(email="x@x.com", password="wrong"),
+        res = client.post(
+            "/login", json={"email": _FAKE_EMAIL, "password": _FAKE_PASSWORD}
         )
+        self._restore_limit("RATE_LIMIT_LOGIN", original)
 
-        with self.app.app_context():
-            self.app.config["RATE_LIMIT_LOGIN"] = original_limit
-
-        if res.status_code == 429:
-            self.assertIn(
-                "Retry-After",
-                res.headers,
-                "Expected Retry-After header in 429 response.",
-            )
+        self.assertEqual(429, res.status_code)
+        self.assertIn(
+            "Retry-After",
+            res.headers,
+            "Expected Retry-After header in 429 response.",
+        )
 
     # ---------------------------------------------------------------
     # /signup rate limiting tests
@@ -133,15 +135,18 @@ class RateLimitingTestCase(BaseTestClass):
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_signup_under_rate_limit_succeeds(self):
         """Requests below the signup threshold should not return 429."""
-        payload = {
-            "name": "testuser",
-            "email": "newuser@example.com",
-            "password": "Password123!",
-        }
+        client = self._fresh_client()
+        self._reset_limiter()
         for i in range(2):
-            payload["email"] = f"newuser{i}@example.com"
-            payload["name"] = f"testuser{i}"
-            res = self.client.post("/signup", json=payload)
+            res = client.post(
+                "/signup",
+                json={
+                    "username": f"ratelimituser{i}",
+                    "role": "Guest",
+                    "email": f"ratelimit{i}@nowhere.invalid",
+                    "password": "ImpossiblePassword!99",
+                },
+            )
             self.assertNotEqual(
                 429,
                 res.status_code,
@@ -151,27 +156,25 @@ class RateLimitingTestCase(BaseTestClass):
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_signup_exceeds_rate_limit_returns_429(self):
         """After exceeding RATE_LIMIT_SIGNUP threshold a 429 must be returned."""
-        with self.app.app_context():
-            original_limit = self.app.config.get("RATE_LIMIT_SIGNUP")
-            self.app.config["RATE_LIMIT_SIGNUP"] = "2/minute"
-            limiter.reset()
+        original = self._override_limit("RATE_LIMIT_SIGNUP", "2/minute")
+        client = self._fresh_client()
+        self._reset_limiter()
 
         responses = []
         for i in range(4):
             responses.append(
-                self.client.post(
+                client.post(
                     "/signup",
                     json={
-                        "name": f"user{i}",
-                        "email": f"user{i}@example.com",
-                        "password": "Password123!",
+                        "username": f"ratelimituser{i}",
+                        "role": "Guest",
+                        "email": f"ratelimit{i}@nowhere.invalid",
+                        "password": "ImpossiblePassword!99",
                     },
                 )
             )
 
-        with self.app.app_context():
-            self.app.config["RATE_LIMIT_SIGNUP"] = original_limit
-
+        self._restore_limit("RATE_LIMIT_SIGNUP", original)
         status_codes = [r.status_code for r in responses]
         self.assertIn(
             429,
@@ -182,28 +185,35 @@ class RateLimitingTestCase(BaseTestClass):
     @unittest.skipIf(__SKIP_ALL__, "Deactivate to run latest created test.")
     def test_signup_429_response_has_correct_structure(self):
         """A 429 signup response body must contain 'message' and 'status'."""
-        with self.app.app_context():
-            original_limit = self.app.config.get("RATE_LIMIT_SIGNUP")
-            self.app.config["RATE_LIMIT_SIGNUP"] = "1/minute"
-            limiter.reset()
+        original = self._override_limit("RATE_LIMIT_SIGNUP", "1/minute")
+        client = self._fresh_client()
+        self._reset_limiter()
 
-        self.client.post(
+        client.post(
             "/signup",
-            json={"name": "a", "email": "a@b.com", "password": "pass"},
+            json={
+                "username": "ratelimitusera",
+                "role": "Guest",
+                "email": "ratelimita@nowhere.invalid",
+                "password": "ImpossiblePassword!99",
+            },
         )
-        res = self.client.post(
+        res = client.post(
             "/signup",
-            json={"name": "b", "email": "b@c.com", "password": "pass"},
+            json={
+                "username": "ratelimituserb",
+                "role": "Guest",
+                "email": "ratelimitb@nowhere.invalid",
+                "password": "ImpossiblePassword!99",
+            },
         )
+        self._restore_limit("RATE_LIMIT_SIGNUP", original)
 
-        with self.app.app_context():
-            self.app.config["RATE_LIMIT_SIGNUP"] = original_limit
-
-        if res.status_code == 429:
-            data = json.loads(res.data)
-            self.assertIn("message", data)
-            self.assertIn("status", data)
-            self.assertEqual(429, data["status"])
+        self.assertEqual(429, res.status_code)
+        data = json.loads(res.data)
+        self.assertIn("message", data)
+        self.assertIn("status", data)
+        self.assertEqual(429, data["status"])
 
     # ---------------------------------------------------------------
     # Limiter config tests
