@@ -64,6 +64,9 @@ class GwUser(db.Model, UserMixin):
     last_activation_token = db.Column(
         db.String(100), unique=False, nullable=True
     )
+    last_password_reset_token = db.Column(
+        db.String(100), unique=False, nullable=True
+    )
     active = db.Column(db.Boolean, nullable=False, default=False)
     activated_on = db.Column(db.DateTime, nullable=True)
     deactivated_on = db.Column(db.DateTime, nullable=True)

@@ -6,7 +6,15 @@ import uuid
 from core import login_manager
 from core.users.models import GwUser
 
-from . import email_activation, login, logout, roles, sanity_check, signup
+from . import (
+    email_activation,
+    login,
+    logout,
+    password_reset,
+    roles,
+    sanity_check,
+    signup,
+)
 
 logger = logging.getLogger(__name__)
 
