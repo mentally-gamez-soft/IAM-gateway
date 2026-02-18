@@ -19,3 +19,8 @@ SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_LOCAL
 DEBUG = True
 LOCAL_DEV = True
+
+# Rate limiting - very permissive for local dev
+RATE_LIMIT_LOGIN = "100/minute"
+RATE_LIMIT_SIGNUP = "100/minute"
+RATELIMIT_STORAGE_URI = env.get("RATELIMIT_STORAGE_URI", "memory://")

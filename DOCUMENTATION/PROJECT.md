@@ -947,3 +947,26 @@ gitgraph
 ---
 
 *Document generated on 2026-02-18. This document should be reviewed and updated as the project evolves.*
+
+---
+
+## 11. Implementation Changelog
+
+### US-001 — Rate Limiting on Authentication Endpoints
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-001-rate-limiting` |
+| **Status** | In Progress |
+| **Started** | 2026-02-18 |
+| **Trello** | [US-001](https://trello.com/c/1EvHLJN2) |
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-001-1 | `pyproject.toml`, `requirements.txt`, `core/__init__.py` | Added `flask-limiter[redis]>=3.5.0` and `redis>=5.0.0` dependencies; created global `Limiter` instance with `memory://` fallback; added `limiter.init_app(app)` in `create_app`; added HTTP 429 error handler in `register_error_handlers` |
+| TASK-001-2 | `core/users/routes/login.py`, `core/users/routes/signup.py` | Applied `@limiter.limit(lambda: current_app.config.get("RATE_LIMIT_LOGIN", "5/minute"))` on login route; applied `@limiter.limit(lambda: current_app.config.get("RATE_LIMIT_SIGNUP", "3/minute"))` on signup route |
+| TASK-001-3 | `config/default.py`, `config/dev.py`, `config/prod.py`, `config/local.py`, `config/testing.py`, `config/staging.py`, `config/validate_config.py` | Added `RATELIMIT_STORAGE_URI`, `RATE_LIMIT_LOGIN`, `RATE_LIMIT_SIGNUP`, `RATE_LIMIT_DEFAULT` to base config; added per-environment overrides; added validation of rate-limit vars in `validate_env_config` |
+| TASK-001-4 | `tests/test_rate_limiting.py` | Created 9 test cases covering: under-threshold success, over-threshold 429, response body structure, Retry-After header, config key presence, testing env using `memory://` backend |
+| TASK-001-5 | `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Added `redis:7-alpine` service with health check; added `depends_on` condition to app service; prod Redis configured with persistence and no external port exposure |

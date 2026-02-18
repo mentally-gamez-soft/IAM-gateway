@@ -1,6 +1,8 @@
 """Declare the module of the application."""
 
-from flask import Flask
+from flask import Flask, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
@@ -13,6 +15,11 @@ from server.config.mails import mail
 csrf = CSRFProtect()
 login_manager = LoginManager()
 db = SQLAlchemy()
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri="memory://",
+)
 
 
 def set_session_schema(schema: str):
@@ -98,6 +105,11 @@ def create_app(settings_module="config.dev") -> Flask:
     mail.init_app(app)
     print("mail plugin loaded.")
 
+    # Reconfigure limiter with the storage URI from app config then init
+    limiter._storage_uri = app.config.get("RATELIMIT_STORAGE_URI", "memory://")
+    limiter.init_app(app)
+    print("rate limiter plugin loaded.")
+
     register_blueprints(app)
     print("blueprints plugin loaded.")
 
@@ -127,3 +139,15 @@ def register_error_handlers(app):
     @app.errorhandler(403)
     def error_403_handler(e):
         return {"message": "Not Allowed, Error 403 !!!"}, 401
+
+    @app.errorhandler(429)
+    def error_429_handler(e):
+        return (
+            jsonify(
+                {
+                    "message": "Too Many Requests. Rate limit exceeded.",
+                    "status": 429,
+                }
+            ),
+            429,
+        )

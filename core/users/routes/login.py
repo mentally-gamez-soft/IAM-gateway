@@ -15,6 +15,7 @@ from config.default import (
     SECRET_KEY,
     SECURITY_PASSWORD_SALT,
 )
+from core import limiter
 from core.auth.api_endpoint_statistics import count_api_calls
 from core.auth.generic_encoder_decoder import encode_as_base64
 from core.auth.jwt.jwt_handler import initiate_session_jwt
@@ -45,6 +46,7 @@ ROUTE_LOGIN: str = "".join([BASE_ROUTE, "/login"])
 
 @users_bp.route(ROUTE_LOGIN, methods=["POST"])
 @users_bp.route("/login", methods=["POST"])
+@limiter.limit(lambda: current_app.config.get("RATE_LIMIT_LOGIN", "5/minute"))
 @count_api_calls
 def login():
     """Define the form for a user to login."""
