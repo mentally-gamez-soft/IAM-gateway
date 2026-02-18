@@ -15,7 +15,7 @@ from core.auth.payload_validator import validate_generic_payload
 from core.common.error_codes import __RESPONSE_STATUS_200
 from core.common.messages import __LOGOUT_SUCCESSFUL
 from core.users import users_bp
-from core.users.models import GwUser
+from core.users.models import GwUser, RefreshToken
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,16 @@ def logout():
     user = GwUser.get_by_id(jwt_decoded[JWT_ENCODING_PARAM_1])
     user.jwt_session_id = None
     user.save()
+
+    # Revoke all refresh tokens for the user
+    try:
+        RefreshToken.revoke_all_for_user(user.id)
+        logger.info(f"All refresh tokens revoked for user {user.id}")
+    except Exception as e:
+        logger.warning(
+            f"Error revoking refresh tokens for user {user.id}: {e}"
+        )
+
     logout_user()
     logger.info("User logged out successfully.")
     return (

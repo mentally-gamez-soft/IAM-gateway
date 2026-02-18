@@ -81,10 +81,16 @@ def validate_env_config(app_config: Config):
         "PASSWORD_RESET_SALT",
     ]
 
+    jwt_token_required_vars = [
+        "JWT_ACCESS_TOKEN_LIFETIME",
+        "JWT_REFRESH_TOKEN_LIFETIME",
+    ]
+
     required_vars.extend(gw_required_vars)
     required_vars.extend(resilience_required_vars)
     required_vars.extend(rate_limit_required_vars)
     required_vars.extend(password_reset_required_vars)
+    required_vars.extend(jwt_token_required_vars)
 
     print(required_vars)
     print(

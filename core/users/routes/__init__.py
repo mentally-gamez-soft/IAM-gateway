@@ -14,6 +14,7 @@ from . import (
     roles,
     sanity_check,
     signup,
+    token,
 )
 
 logger = logging.getLogger(__name__)

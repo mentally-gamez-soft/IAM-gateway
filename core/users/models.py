@@ -1,5 +1,6 @@
 """Defines the models for the users module."""
 
+import hashlib
 import uuid
 from os import environ as env
 from typing import List
@@ -246,6 +247,139 @@ class GwUser(db.Model, UserMixin):
         """
         GwUser.get_by_id(id).last_activation_token = activation_token
         get_session_with_schema().commit()
+
+
+class RefreshToken(db.Model):
+    """Model for storing refresh tokens with rotation and revocation support."""
+
+    __table_args__ = {
+        "comment": "Stores refresh tokens with family-based reuse detection.",
+    }
+    __tablename__ = "refresh_token"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(255), unique=True, nullable=False)  # hashed
+    user_id = db.Column(
+        UUID(as_uuid=True), db.ForeignKey("gw_user.id"), nullable=False
+    )
+    family_id = db.Column(
+        UUID(as_uuid=True), nullable=False, default=uuid.uuid4
+    )
+    created_on = db.Column(
+        db.DateTime, nullable=False, default=arrow.utcnow().datetime
+    )
+    expires_on = db.Column(db.DateTime, nullable=False)
+    revoked = db.Column(db.Boolean, nullable=False, default=False)
+    revoked_on = db.Column(db.DateTime, nullable=True)
+    replaced_by = db.Column(db.String(255), nullable=True)  # hash of new token
+
+    user = db.relationship(
+        "GwUser",
+        backref=db.backref(
+            "refresh_tokens", cascade="all, delete-orphan", lazy=True
+        ),
+    )
+
+    def __init__(
+        self, user_id: UUID, expires_on: arrow.Arrow, family_id: UUID = None
+    ):
+        """Initialize a refresh token.
+
+        Args:
+            user_id (UUID): The ID of the user
+            expires_on (arrow.Arrow): Expiration datetime
+            family_id (UUID, optional): Token family for reuse detection
+        """
+        self.user_id = user_id
+        self.expires_on = (
+            expires_on.datetime
+            if hasattr(expires_on, "datetime")
+            else expires_on
+        )
+        self.family_id = family_id or uuid.uuid4()
+        self.created_on = arrow.utcnow().datetime
+
+    @staticmethod
+    def hash_token(token: str) -> str:
+        """Hash a refresh token for storage.
+
+        Args:
+            token (str): Raw refresh token
+
+        Returns:
+            str: SHA-256 hash of the token
+        """
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    def is_expired(self) -> bool:
+        """Check if the token has expired.
+
+        Returns:
+            bool: True if expired, False otherwise
+        """
+        return arrow.utcnow() > arrow.get(self.expires_on)
+
+    def is_valid(self) -> bool:
+        """Check if the token is valid (not revoked and not expired).
+
+        Returns:
+            bool: True if valid, False otherwise
+        """
+        return not self.revoked and not self.is_expired()
+
+    def revoke(self):
+        """Mark this token as revoked."""
+        self.revoked = True
+        self.revoked_on = arrow.utcnow().datetime
+        get_session_with_schema().commit()
+
+    @staticmethod
+    def get_by_token(token_hash: str) -> "RefreshToken":
+        """Retrieve a refresh token by its hash.
+
+        Args:
+            token_hash (str): SHA-256 hash of the refresh token
+
+        Returns:
+            RefreshToken: The token if found, None otherwise
+        """
+        return RefreshToken.query.filter_by(token=token_hash).first()
+
+    @staticmethod
+    def revoke_all_for_user(user_id: UUID):
+        """Revoke all refresh tokens for a user.
+
+        Args:
+            user_id (UUID): The user ID
+        """
+        tokens = RefreshToken.query.filter_by(
+            user_id=user_id, revoked=False
+        ).all()
+        for token in tokens:
+            token.revoke()
+
+    @staticmethod
+    def revoke_family(family_id: UUID):
+        """Revoke all tokens in a family (reuse detection).
+
+        Args:
+            family_id (UUID): The family ID
+        """
+        tokens = RefreshToken.query.filter_by(
+            family_id=family_id, revoked=False
+        ).all()
+        for token in tokens:
+            token.revoke()
+
+    def save(self):
+        """Save this refresh token to the database."""
+        if not self.id:
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()
+
+    def __repr__(self):
+        """Return string representation."""
+        return f"<RefreshToken user_id={self.user_id} expired={self.is_expired()}>"
 
 
 class StatsApiEndpoints(db.Model):

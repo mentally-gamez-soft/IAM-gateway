@@ -131,6 +131,16 @@ PASSWORD_RESET_EMAIL_SUBJECT = env.get(
 PASSWORD_RESET_SALT = env.get("PASSWORD_RESET_SALT", "password-reset-salt")
 
 ################################################################
+# ### JWT Token Refresh configuration                      ####
+################################################################
+JWT_ACCESS_TOKEN_LIFETIME = int(
+    env.get("JWT_ACCESS_TOKEN_LIFETIME", 15)
+)  # 15 minutes default
+JWT_REFRESH_TOKEN_LIFETIME = int(
+    env.get("JWT_REFRESH_TOKEN_LIFETIME", 10080)
+)  # 7 days (10080 minutes) default
+
+################################################################
 # ### API with token auth. CSRF protection disabled   ##########
 ################################################################
 WTF_CSRF_ENABLED = False
