@@ -17,7 +17,15 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-  
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
   nginx:
     build: ../../nginx/prod
     container_name: nginx 
@@ -27,6 +35,14 @@ services:
       - app_bridge
     depends_on:
       - iam_gateway_container
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+        reservations:
+          cpus: '0.10'
+          memory: 32M
 
   redis:
     image: redis:7-alpine
@@ -41,7 +57,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.10'
+          memory: 128M
+
 networks:
   app_bridge:
     driver: bridge
