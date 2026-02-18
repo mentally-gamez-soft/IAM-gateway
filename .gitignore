@@ -172,3 +172,5 @@ requirements*.txt
 *.env
 
 migrations/*
+
+.vscode

@@ -20,3 +20,9 @@ APP_ENV = APP_ENV_TESTING
 DEBUG = True
 TESTING = True
 WTF_CSRF_ENABLED = False
+
+# Rate limiting - very high thresholds and memory backend for tests
+RATE_LIMIT_LOGIN = "1000/minute"
+RATE_LIMIT_SIGNUP = "1000/minute"
+RATELIMIT_STORAGE_URI = "memory://"
+RATELIMIT_HEADERS_ENABLED = True

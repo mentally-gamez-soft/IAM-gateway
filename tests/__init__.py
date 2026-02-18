@@ -3,7 +3,7 @@
 import unittest
 
 from core import create_app, db
-from core.users.models import GwUser
+from core.users.models import GwUser, GwUserRole, StatsApiEndpoints
 
 
 class BaseTestClass(unittest.TestCase):
@@ -29,9 +29,13 @@ class BaseTestClass(unittest.TestCase):
     def tearDown(self):
         """Destroy the data set after each test."""
         with self.app.app_context():
-            # Delete the database with all its data
+            # Delete all the data from the DB
+            db.session.query(GwUserRole).delete()
+            db.session.query(GwUser).delete()
+            db.session.query(StatsApiEndpoints).delete()
+            db.session.commit()
             db.session.remove()
-            db.drop_all()
+            # db.drop_all()
 
     @staticmethod
     def create_user(

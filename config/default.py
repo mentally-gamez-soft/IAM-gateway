@@ -107,3 +107,18 @@ CIRCUIT_BREAKER_RESET_TIMEOUT = int(
     env.get("CIRCUIT_BREAKER_RESET_TIMEOUT", 120)
 )
 RETRY_CALLS = int(env.get("RETRY_CALLS", 3))
+
+################################################################
+# ### Rate Limiting configuration                           ####
+################################################################
+RATELIMIT_STORAGE_URI = env.get(
+    "RATELIMIT_STORAGE_URI", "redis://redis:6379/0"
+)
+RATE_LIMIT_LOGIN = env.get("RATE_LIMIT_LOGIN", "5/minute")
+RATE_LIMIT_SIGNUP = env.get("RATE_LIMIT_SIGNUP", "3/minute")
+RATE_LIMIT_DEFAULT = env.get("RATE_LIMIT_DEFAULT", "200/hour")
+
+################################################################
+# ### API with token auth. CSRF protection disabled   ##########
+################################################################
+WTF_CSRF_ENABLED = False

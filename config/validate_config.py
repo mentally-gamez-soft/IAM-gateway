@@ -71,8 +71,15 @@ def validate_env_config(app_config: Config):
         "RETRY_CALLS",
     ]
 
+    rate_limit_required_vars = [
+        "RATELIMIT_STORAGE_URI",
+        "RATE_LIMIT_LOGIN",
+        "RATE_LIMIT_SIGNUP",
+    ]
+
     required_vars.extend(gw_required_vars)
     required_vars.extend(resilience_required_vars)
+    required_vars.extend(rate_limit_required_vars)
 
     print(required_vars)
     print(
