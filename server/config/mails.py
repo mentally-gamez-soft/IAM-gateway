@@ -20,7 +20,7 @@ def send_password_reset_email(user, token):
     try:
         # Build reset link
         reset_url = url_for(
-            "core.users.routes.password_reset.reset_password",
+            "users.reset_password",
             token=token,
             _external=True,
         )
