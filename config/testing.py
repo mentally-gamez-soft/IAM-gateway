@@ -20,6 +20,7 @@ APP_ENV = APP_ENV_TESTING
 DEBUG = True
 TESTING = True
 WTF_CSRF_ENABLED = False
+LOG_FORMAT = "text"
 
 # Rate limiting - very high thresholds and memory backend for tests
 RATE_LIMIT_LOGIN = "1000/minute"

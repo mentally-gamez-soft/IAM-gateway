@@ -1,6 +1,8 @@
 """Declare the module of the application."""
 
-from flask import Flask, jsonify
+import uuid
+
+from flask import Flask, g, jsonify, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -86,6 +88,16 @@ def create_app(settings_module="config.dev") -> Flask:
     validate_env_config(app.config)
 
     configure_logging(app)
+
+    @app.before_request
+    def inject_request_id():
+        """Generate or propagate a unique request ID for every request.
+
+        Reads X-Request-ID from the incoming request header if present,
+        otherwise generates a new UUID4. Stored in Flask's g object so
+        that the RequestContextFilter can include it in every log record.
+        """
+        g.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
 
     login_manager.init_app(app)
     print("login manager plugin loaded.")

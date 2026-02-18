@@ -19,6 +19,7 @@ SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_LOCAL
 DEBUG = True
 LOCAL_DEV = True
+LOG_FORMAT = "text"
 
 # Rate limiting - very permissive for local dev
 RATE_LIMIT_LOGIN = "100/minute"
