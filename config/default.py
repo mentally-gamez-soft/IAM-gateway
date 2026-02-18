@@ -28,6 +28,8 @@ APP_SEND_EMAILS = env.get("APP_SEND_EMAILS", "True").lower() == "true"
 # logs files directories
 LOG_PATH = join(BASE_DIR, env.get("LOG_PATH", "logs"))
 LOG_FILENAME = env.get("LOG_FILENAME", "app.log")
+# Logging format: "text" for human-readable, "json" for structured JSON
+LOG_FORMAT = env.get("LOG_FORMAT", "text")
 
 SECRET_KEY = env.get("SECRET_KEY")
 SECURITY_PASSWORD_SALT = env.get("SECURITY_PASSWORD_SALT")

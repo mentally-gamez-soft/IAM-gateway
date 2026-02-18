@@ -19,6 +19,7 @@ dependencies = [
     "flask-limiter[redis]>=3.5.0",
     "flask-wtf~=1.2.2",
     "pre-commit>=4.2.0",
+    "python-json-logger>=2.0.7",
     "redis>=5.0.0",
     "psycopg2~=2.9.10",
     "pybreaker>=1.3.0",
