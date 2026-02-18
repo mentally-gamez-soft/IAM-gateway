@@ -49,6 +49,21 @@ A set of tools is provided to help you to create, run and stop the docker contai
     Requires password strength validation
     Clears JWT session to force re-login
 
+### Refresh Token
+    The token refresh endpoint is located at "/token/refresh"
+    Request: POST /token/refresh with refresh token in Authorization header or Body
+    Returns new access_token (15 min expiration) + refresh_token (7 days expiration)
+    Supports token rotation with family tracking for security breach detection
+    Replayed/revoked tokens trigger family-wide revocation (401 response)
+    Tokens stored securely in database with SHA-256 hashing
+
+### Dual-Token System
+    Login now returns both a short-lived access token (15 minutes) and a long-lived refresh token (7 days)
+    Access token: Used for API authentication via Authorization Bearer header
+    Refresh token: Used to obtain new access tokens via /token/refresh endpoint
+    Token rotation: Old refresh tokens are marked with replaced_by relationship
+    Family ID tracking: Detects and prevents token reuse attacks
+
 ### Swagger documentations
     The swagger UI is located at "/swagger"
 

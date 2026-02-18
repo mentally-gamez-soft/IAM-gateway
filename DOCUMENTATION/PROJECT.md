@@ -285,6 +285,7 @@ sequenceDiagram
 sequenceDiagram
     actor User
     participant API as /login
+    participant JWT as JWT Handler
     participant DB as PostgreSQL
 
     User->>API: POST /login {email, password, remember_me}
@@ -307,9 +308,12 @@ sequenceDiagram
     end
 
     API->>API: Login user (Flask-Login session)
-    API->>API: Generate JWT (user_id, roles, email)
-    API->>DB: Store JWT session ID
-    API-->>User: 200 — Login successful + JWT + user_id(base64) + CSRF
+    API->>JWT: generate_token_pair(user_id, roles)
+    JWT->>JWT: Create access_token (15 min, type=access)
+    JWT->>JWT: Create refresh_token (7 days, type=refresh)
+    JWT->>DB: Store hashed refresh_token with family_id and expiration
+    API->>DB: Store JWT session ID (access_token for backward compatibility)
+    API-->>User: 200 — Login successful + access_token + refresh_token + CSRF
 ```
 
 ### 5.3 Logout Flow
@@ -320,6 +324,7 @@ sequenceDiagram
     participant API as /logout
     participant Guard as Authorization Guard
     participant Validator as Payload Validator
+    participant RefreshToken as RefreshToken Model
     participant DB as PostgreSQL
 
     User->>API: POST /logout {data: {jwt, user}}
@@ -336,8 +341,63 @@ sequenceDiagram
     API->>API: @login_required check
     API->>API: Decode JWT, get user
     API->>DB: Clear jwt_session_id
+    API->>RefreshToken: revoke_all_for_user(user_id)
+    RefreshToken->>DB: Mark all user refresh_tokens as revoked
     API->>API: logout_user()
     API-->>User: 200 — Logout successful + CSRF
+```
+
+### 5.3.1 Token Refresh Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as /token/refresh
+    participant RefreshToken as RefreshToken Model
+    participant JWT as JWT Handler
+    participant DB as PostgreSQL
+
+    User->>API: POST /token/refresh {refresh_token in Authorization header or body}
+    API->>API: Extract refresh token
+
+    alt Missing token
+        API-->>User: 400 — Refresh token required
+    end
+
+    API->>RefreshToken: get_by_token(refresh_token_hash)
+    API->>DB: Lookup token in database
+
+    alt Token not found
+        API-->>User: 401 — Invalid refresh token
+    end
+
+    API->>RefreshToken: is_expired()
+
+    alt Token expired
+        API-->>User: 401 — Refresh token expired
+    end
+
+    API->>RefreshToken: is_valid() [check revoked status]
+
+    alt Token revoked
+        API-->>User: 401 — Refresh token revoked
+    end
+
+    API->>RefreshToken: Check replaced_by (reuse detection)
+
+    alt Token already rotated (reuse detected)
+        API->>RefreshToken: revoke_family(family_id)
+        RefreshToken->>DB: Mark all family tokens as revoked
+        API-->>User: 401 — Token reuse detected (breach)
+    end
+
+    API->>JWT: generate_token_pair(user_id, roles)
+    JWT->>JWT: Create new access_token (15 min)
+    JWT->>JWT: Create new refresh_token (7 days)
+    JWT->>RefreshToken: revoke() [mark old token as revoked]
+    RefreshToken->>DB: Set replaced_by = new_token_id, revoked = true
+    JWT->>DB: Store new hashed refresh_token with same family_id
+    API-->>User: 200 — New tokens issued + access_token + refresh_token
 ```
 
 ### 5.4 Email Activation Flow
@@ -530,6 +590,18 @@ erDiagram
         DateTime created_on
     }
 
+    REFRESH_TOKEN {
+        Integer id PK
+        String token "hashed SHA-256"
+        UUID user_id FK
+        UUID family_id "rotation lineage"
+        Boolean revoked
+        DateTime created_on
+        DateTime expires_on
+        DateTime revoked_on
+        Integer replaced_by FK "next token in rotation"
+    }
+
     STATS_API_ENDPOINTS {
         Integer id PK
         Integer count
@@ -537,6 +609,8 @@ erDiagram
     }
 
     GW_USER ||--o{ GW_USER_ROLE : "has many"
+    GW_USER ||--o{ REFRESH_TOKEN : "has many"
+    REFRESH_TOKEN ||--o{ REFRESH_TOKEN : "replaced_by"
 ```
 
 ---
@@ -554,6 +628,10 @@ erDiagram
 | **Password Reset** | `itsdangerous.URLSafeTimedSerializer` with time-limited tokens (30 min) | Time-limited reset tokens; stored in DB and cleared after use |
 | **Password Reset Email** | Enumeration prevention (identical responses) + rate limiting (3/hour) | Prevents account discovery; rate limit on forgot-password endpoint |
 | **Session Invalidation** | JWT session ID cleared on password reset | Forces user to re-login after password change |
+| **Refresh Token Mechanism** | Dual-token system: short-lived access (15 min) + long-lived refresh (7 days) | Access tokens used for API auth; refresh tokens stored securely in DB (SHA-256 hashed) |
+| **Token Rotation** | Family ID tracking with `replaced_by` relationship | Old refresh tokens marked as revoked when new ones issued; lineage tracked for security |
+| **Token Reuse Detection** | Automatic family-wide revocation on replayed tokens | If rotated token presented again (breach detection), entire token family revoked with 401 response |
+| **Token Storage** | RefreshToken SQLAlchemy model with encrypted hash + expiration | Tokens never stored in plain text; indices on user_id, family_id, and token_hash for performance |
 | **Circuit Breaker** | PyBreaker with configurable `fail_max` and `reset_timeout` | Protects against external password-scoring API failures |
 | **Input Validation** | email-validator, python-usernames, custom validators | Validates usernames, emails, and password strength |
 | **Configuration Validation** | `validate_config.py` checks all required env vars at startup | Fail-fast on missing configuration |
