@@ -439,6 +439,68 @@ flowchart LR
     H --> I[JSON Response + X-CSRFToken Header]
 ```
 
+### 5.8 Password Reset Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ForgotAPI as POST /forgot-password
+    participant ResetAPI as POST /reset-password/<token>
+    participant DB as PostgreSQL
+    participant Mail as SMTP Server
+    participant Validator as Password Validator
+
+    rect rgb(200, 220, 255)
+        Note over User,Mail: Step 1: Request Password Reset
+        User->>ForgotAPI: POST {"email": "user@example.com"}
+        ForgotAPI->>DB: Check if user exists
+        alt User found
+            ForgotAPI->>ForgotAPI: Generate time-limited token (URLSafeTimedSerializer)
+            ForgotAPI->>DB: Store token in last_password_reset_token
+            ForgotAPI->>Mail: Send reset email with link
+        end
+        ForgotAPI-->>User: 200 — (same response regardless, prevents enumeration)
+    end
+
+    rect rgb(200, 255, 220)
+        Note over User,Validator: Step 2: Reset Password with Token
+        User->>Mail: Click reset link in email
+        Mail->>User: Redirect to reset form
+        User->>ResetAPI: POST /reset-password/<token> {"new_password": "..."}
+        ResetAPI->>ResetAPI: Deserialize token (check expiration - 30 min)
+        
+        alt Token expired or invalid
+            ResetAPI-->>User: 422 — Invalid or expired token
+        end
+        
+        ResetAPI->>DB: Get user by token
+        ResetAPI->>ResetAPI: Verify token matches stored last_password_reset_token
+        
+        alt Token already used
+            ResetAPI-->>User: 422 — Token already redeemed
+        end
+        
+        ResetAPI->>Validator: Validate password strength (min score 70)
+        
+        alt Password too weak
+            ResetAPI-->>User: 422 — Password does not meet requirements
+        end
+        
+        ResetAPI->>DB: Update user.password (hashed)
+        ResetAPI->>DB: Clear user.jwt_session_id (invalidate all sessions)
+        ResetAPI->>DB: Clear user.last_password_reset_token (prevent reuse)
+        ResetAPI-->>User: 200 — Password reset successful, please log in again
+    end
+```
+
+**Key Security Features:**
+- **Email Enumeration Prevention:** `/forgot-password` returns identical responses for existing and non-existing emails
+- **Rate Limiting:** `/forgot-password` limited to 3 requests per hour per IP
+- **Token Expiration:** Reset tokens expire after 30 minutes (configurable)
+- **Token Reuse Prevention:** Token is cleared from database after successful reset
+- **Session Invalidation:** User's JWT session is invalidated, forcing a fresh login
+- **Password Strength:** New password validated via external scoring API (minimum score 70)
+
 ---
 
 ## 6. Database Models
@@ -452,6 +514,7 @@ erDiagram
         String password
         DateTime created_on
         String last_activation_token
+        String last_password_reset_token
         Boolean active
         DateTime activated_on
         DateTime deactivated_on
@@ -488,6 +551,9 @@ erDiagram
 | **Authorization Guard** | Custom decorator checking JWT + user existence + activation status | Applied to all protected routes |
 | **Payload Validation** | Custom decorators `validate_generic_payload`, `validate_role_payload` | Validates JSON structure before processing |
 | **Email Activation** | `itsdangerous.URLSafeTimedSerializer` with time-limited tokens | One-time tokens with configurable expiration |
+| **Password Reset** | `itsdangerous.URLSafeTimedSerializer` with time-limited tokens (30 min) | Time-limited reset tokens; stored in DB and cleared after use |
+| **Password Reset Email** | Enumeration prevention (identical responses) + rate limiting (3/hour) | Prevents account discovery; rate limit on forgot-password endpoint |
+| **Session Invalidation** | JWT session ID cleared on password reset | Forces user to re-login after password change |
 | **Circuit Breaker** | PyBreaker with configurable `fail_max` and `reset_timeout` | Protects against external password-scoring API failures |
 | **Input Validation** | email-validator, python-usernames, custom validators | Validates usernames, emails, and password strength |
 | **Configuration Validation** | `validate_config.py` checks all required env vars at startup | Fail-fast on missing configuration |
