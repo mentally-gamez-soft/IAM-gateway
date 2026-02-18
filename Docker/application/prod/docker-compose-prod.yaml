@@ -1,0 +1,47 @@
+services:
+  iam_gateway_container:
+    build: ../../../
+    command: gunicorn --bind 0.0.0.0:${GUNICORN_PORT} --workers 6 "application:app"
+    container_name: iam_gateway_container
+    image: "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${APP_NAME}-${APP_ENV}-${APP_VERSION}"
+    expose:
+      - ${GUNICORN_PORT}
+    networks:
+      app_bridge:
+        aliases:
+          - iam_gateway_network
+    env_file:
+      - .env
+      - app.version.env
+      - app.name.env
+    depends_on:
+      redis:
+        condition: service_healthy
+  
+  nginx:
+    build: ../../nginx/prod
+    container_name: nginx 
+    ports:
+      - 93:80
+    networks:
+      - app_bridge
+    depends_on:
+      - iam_gateway_container
+
+  redis:
+    image: redis:7-alpine
+    container_name: iam_gateway_redis_prod
+    expose:
+      - "6379"
+    networks:
+      - app_bridge
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+networks:
+  app_bridge:
+    driver: bridge
