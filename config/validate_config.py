@@ -77,9 +77,14 @@ def validate_env_config(app_config: Config):
         "RATE_LIMIT_SIGNUP",
     ]
 
+    password_reset_required_vars = [
+        "PASSWORD_RESET_SALT",
+    ]
+
     required_vars.extend(gw_required_vars)
     required_vars.extend(resilience_required_vars)
     required_vars.extend(rate_limit_required_vars)
+    required_vars.extend(password_reset_required_vars)
 
     print(required_vars)
     print(

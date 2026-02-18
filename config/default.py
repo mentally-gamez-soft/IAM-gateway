@@ -117,6 +117,18 @@ RATELIMIT_STORAGE_URI = env.get(
 RATE_LIMIT_LOGIN = env.get("RATE_LIMIT_LOGIN", "5/minute")
 RATE_LIMIT_SIGNUP = env.get("RATE_LIMIT_SIGNUP", "3/minute")
 RATE_LIMIT_DEFAULT = env.get("RATE_LIMIT_DEFAULT", "200/hour")
+RATE_LIMIT_FORGOT_PASSWORD = env.get("RATE_LIMIT_FORGOT_PASSWORD", "3/hour")
+
+################################################################
+# ### Password Reset configuration                         ####
+################################################################
+PASSWORD_RESET_TOKEN_EXPIRATION = int(
+    env.get("PASSWORD_RESET_TOKEN_EXPIRATION", 1800)
+)  # 30 minutes in seconds
+PASSWORD_RESET_EMAIL_SUBJECT = env.get(
+    "PASSWORD_RESET_EMAIL_SUBJECT", "Reset Your Password"
+)
+PASSWORD_RESET_SALT = env.get("PASSWORD_RESET_SALT", "password-reset-salt")
 
 ################################################################
 # ### API with token auth. CSRF protection disabled   ##########

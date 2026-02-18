@@ -36,6 +36,19 @@ A set of tools is provided to help you to create, run and stop the docker contai
 ### Activation account
     The activation account endpoint is located at "/confirm/<token>"
 
+### Forgot password
+    The forgot password endpoint is located at "/forgot-password"
+    Request: POST /forgot-password with {"email": "user@example.com"}
+    Always returns 200 for security (prevents email enumeration)
+    Rate limited to 3 requests per hour
+
+### Reset password
+    The reset password endpoint is located at "/reset-password/<token>"
+    Request: POST /reset-password/<token> with {"new_password": "..."}
+    Validates token expiration (30 minutes by default)
+    Requires password strength validation
+    Clears JWT session to force re-login
+
 ### Swagger documentations
     The swagger UI is located at "/swagger"
 
