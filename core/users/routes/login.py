@@ -18,7 +18,10 @@ from config.default import (
 from core import limiter
 from core.auth.api_endpoint_statistics import count_api_calls
 from core.auth.generic_encoder_decoder import encode_as_base64
-from core.auth.jwt.jwt_handler import initiate_session_jwt
+from core.auth.jwt.jwt_handler import (
+    generate_token_pair,
+    initiate_session_jwt,
+)
 from core.auth.middlewares.validation_token import generate_activation_token
 from core.common.error_codes import (
     __RESPONSE_STATUS_200,
@@ -82,28 +85,33 @@ def login():
         ):
             login_user(user, remember=form.remember_me.data)
 
-            # creation of JWT
-            jwt_token = initiate_session_jwt(
-                payload={
-                    JWT_ENCODING_PARAM_1: str(user.id),
+            # Generate dual-token pair (access + refresh tokens)
+            token_pair = generate_token_pair(
+                user_id=user.id,
+                payload_data={
                     JWT_ENCODING_PARAM_2: GwUser.get_user_roles_by_id(user.id),
                     JWT_ENCODING_PARAM_3: user.email,
                 },
-                lifetime_in_minutes=get_duration_in_minutes(
-                    duration=int(JWT_EXPIRATION_TIME)
-                ),
             )
 
-            user.jwt_session_id = jwt_token
+            # Keep access token in jwt_session_id for backward compatibility
+            user.jwt_session_id = token_pair["access_token"]
             user.save()
-            logger.info("User logged in successfully - {}".format(jwt_token))
+            logger.info(
+                "User logged in successfully - {}".format(
+                    token_pair["access_token"]
+                )
+            )
 
             return (
                 jsonify(
                     {
                         "data": {
                             "user": encode_as_base64(str(user.id)),
-                            "jwt": jwt_token,
+                            "access_token": token_pair["access_token"],
+                            "refresh_token": token_pair["refresh_token"],
+                            "token_type": token_pair["token_type"],
+                            "expires_in": token_pair["expires_in"],
                         },
                         "status": __RESPONSE_STATUS_200,
                         "message": __LOGIN_SUCCESSFUL,
