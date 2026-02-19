@@ -8,6 +8,7 @@ from core.users.models import GwUser
 
 from . import (
     email_activation,
+    health,
     login,
     logout,
     password_reset,

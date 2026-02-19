@@ -64,6 +64,21 @@ A set of tools is provided to help you to create, run and stop the docker contai
     Token rotation: Old refresh tokens are marked with replaced_by relationship
     Family ID tracking: Detects and prevents token reuse attacks
 
+### Health Check — Liveness Probe (US-005)
+    GET /health — returns 200 if the application process is alive (no DB, no auth required)
+    Response: {"status": "ok", "timestamp": "<ISO 8601>", "version": "<APP_VERSION>"}
+    Use as Docker/Kubernetes liveness probe target.
+
+### Readiness Probe (US-005)
+    GET /ready — returns 200 when all critical dependencies are reachable; 503 otherwise
+    Checks performed:
+        - database: executes SELECT 1 via SQLAlchemy (3-second timeout)
+        - password_api: HTTP HEAD to WS_SCORING_PASSWORD_URL_API (3-second timeout; skipped if URL is empty)
+        - smtp: TCP connect to SMTP server (3-second timeout; skipped if APP_SEND_EMAILS=False)
+    Response: {"status": "ready"|"not_ready", "checks": {"database": {...}, "password_api": {...}, "smtp": {...}}}
+    Both endpoints bypass authentication and CSRF protection.
+    Docker HEALTHCHECK is configured in Dockerfile and both compose files using wget --spider http://localhost:5000/health
+
 ## Structured JSON Logging (US-004)
 
 The application supports two log output formats controlled by the `LOG_FORMAT` environment variable:
@@ -124,6 +139,7 @@ Pass `X-Request-ID: <uuid>` in the request header to correlate log entries with 
 
 ### Executing the tests suit
     uv run -m unittest tests.test_standard_routes
+    uv run -m unittest tests.test_health
 
 ### Executing database migrations:
     flask --app application db init
