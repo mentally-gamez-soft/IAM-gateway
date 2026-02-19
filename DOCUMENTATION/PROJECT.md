@@ -1189,6 +1189,7 @@ gitgraph
 | Field | Detail |
 |---|---|
 | **Branch** | `feature/US-005-health-readiness-endpoints` |
+| **PR** | [#12](https://github.com/mentally-gamez-soft/IAM-gateway/pull/12) |
 | **Status** | QA Testing |
 | **Started** | 2026-02-18 |
 
