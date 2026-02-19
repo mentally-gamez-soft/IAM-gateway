@@ -53,7 +53,7 @@ def authorization_guard(f, role=None):
 
         # Authentication gate
         try:
-            jwt = json["data"]["jwt"]
+            jwt = json["data"]["access_token"]
             user = json["data"]["user"]
         except Exception as e:
             return (
@@ -119,7 +119,7 @@ def authorization_guard(f, role=None):
                         "status": __RESPONSE_STATUS_403,
                         "data": {
                             "user": user,
-                            "jwt": jwt,
+                            "access_token": jwt,
                         },
                     }
                 ),

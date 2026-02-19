@@ -24,8 +24,10 @@ class BlogClientTestCase(BaseTestClass):
         __PROTECTED_ENDPOINTS__, "Family of tests for the protected end points"
     )
     def test_unauthorized_access(self):
-        tampered_payload = {"data": {"user": "1234566", "jwt": "Fake.Jwt"}}
-        res = self.client.get("/protected", json=tampered_payload)
+        tampered_payload = {
+            "data": {"user": "1234566", "access_token": "Fake.Jwt"}
+        }
+        res = self.client.get("/api/v1/protected", json=tampered_payload)
         data = json.loads(res.data)
 
         self.assertEqual(401, res.status_code)
@@ -67,7 +69,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
     @unittest.skipIf(
@@ -87,19 +89,19 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Request endpoint that requires authentication
         payload = data
-        res = self.client.get("/protected", json=payload)
+        res = self.client.get("/api/v1/protected", json=payload)
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("Welcome to Gateway-IAM-Proxy service.", data["message"])
 
     @unittest.skipIf(
@@ -120,7 +122,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Disconnect from the app.
@@ -150,7 +152,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Disconnect from the app.
@@ -164,7 +166,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("You are now logged out.", data.get("message"))
 
         # request protected endpoint
-        res = self.client.get("/protected", json={})
+        res = self.client.get("/api/v1/protected", json={})
         data = json.loads(res.data)
 
         self.assertEqual(401, res.status_code)
@@ -190,7 +192,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
@@ -202,7 +204,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn(
             "The new role has been added successfully to user.",
             data.get("message"),
@@ -235,7 +237,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
@@ -277,7 +279,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
@@ -318,11 +320,11 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
-        data["data"].pop("jwt", None)
+        data["data"].pop("access_token", None)
         data["data"]["role"] = role
         res = self.add_role(data)
         data = json.loads(res.data)
@@ -387,9 +389,9 @@ class BlogClientTestCase(BaseTestClass):
         res_7 = self.add_role(data_1)
 
         # user 1 test the protected end point  => 3 calls for protected
-        res_8 = self.client.get("/protected", json=data_1)
-        res_9 = self.client.get("/protected", json=data_1)
-        res_10 = self.client.get("/protected", json=data_1)
+        res_8 = self.client.get("/api/v1/protected", json=data_1)
+        res_9 = self.client.get("/api/v1/protected", json=data_1)
+        res_10 = self.client.get("/api/v1/protected", json=data_1)
 
         # user1 logout => 1 call for logout
         res_11 = self.logout(data_1)
@@ -399,7 +401,7 @@ class BlogClientTestCase(BaseTestClass):
         data_2 = json.loads(res_2.data)
 
         # user 2 test the protected end point  => 4 calls for protected
-        res_8 = self.client.get("/protected", json=data_2)
+        res_8 = self.client.get("/api/v1/protected", json=data_2)
 
         # user 2 logout => 2 calls for logout
         res_11 = self.logout(data_1)
@@ -435,7 +437,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add role Artist to the user
@@ -448,14 +450,14 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn(
             "The new role has been added successfully to user.",
             data.get("message"),
         )
 
         # Access to endpoint
-        res = self.client.get("/protected-role", json=data)
+        res = self.client.get("/api/v1/protected-role", json=data)
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
@@ -489,7 +491,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add role Artist to the user
@@ -502,14 +504,14 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn(
             "The new role has been added successfully to user.",
             data.get("message"),
         )
 
         # Access to endpoint
-        res = self.client.get("/protected-role", json=data)
+        res = self.client.get("/api/v1/protected-role", json=data)
         data = json.loads(res.data)
 
         self.assertEqual(403, res.status_code)
@@ -547,7 +549,7 @@ class BlogClientTestCase(BaseTestClass):
             user.save()
 
         # Access to endpoint
-        res = self.client.get("/confirm/{}".format(activation_token))
+        res = self.client.get("/api/v1/confirm/{}".format(activation_token))
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
@@ -583,7 +585,7 @@ class BlogClientTestCase(BaseTestClass):
         )
 
         # Access to endpoint
-        res = self.client.get("/confirm/{}".format(activation_token))
+        res = self.client.get("/api/v1/confirm/{}".format(activation_token))
         data = json.loads(res.data)
 
         self.assertEqual(403, res.status_code)
@@ -610,7 +612,7 @@ class BlogClientTestCase(BaseTestClass):
         payload = {"data": {"email": "user.does.not.exist@gmail.com"}}
 
         # Access to endpoint
-        res = self.client.get("/resend-confirmation", json=payload)
+        res = self.client.get("/api/v1/resend-confirmation", json=payload)
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
@@ -641,7 +643,7 @@ class BlogClientTestCase(BaseTestClass):
 
         payload = {"data": {"email": email}}
         # Access to endpoint
-        res = self.client.get("/resend-confirmation", json=payload)
+        res = self.client.get("/api/v1/resend-confirmation", json=payload)
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
@@ -671,13 +673,13 @@ class BlogClientTestCase(BaseTestClass):
 
         self.assertEqual(200, res.status_code)
         self.assertIn("X-CSRFToken", res.headers)
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIsNotNone(data["data"]["user"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         payload = {"data": {"email": email}}
         # Access to endpoint
-        res = self.client.get("/resend-confirmation", json=payload)
+        res = self.client.get("/api/v1/resend-confirmation", json=payload)
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
@@ -708,7 +710,7 @@ class BlogClientTestCase(BaseTestClass):
             "password": password,
         }
         # Access to endpoint
-        res = self.client.post("/signup", json=payload)
+        res = self.client.post("/api/v1/signup", json=payload)
         data = json.loads(res.data)
 
         self.assertEqual(200, res.status_code)
@@ -740,7 +742,7 @@ class BlogClientTestCase(BaseTestClass):
             "password": password,
         }
         # Access to endpoint
-        res = self.client.post("/signup", json=payload)
+        res = self.client.post("/api/v1/signup", json=payload)
         data = json.loads(res.data)
 
         self.assertEqual(422, res.status_code)
@@ -752,3 +754,130 @@ class BlogClientTestCase(BaseTestClass):
         # Validate that user is not created
         with self.app.app_context():
             self.assertEqual(1, GwUser.get_number_of_users_by_email(email))
+
+
+class ApiVersioningTestCase(BaseTestClass):
+    """Test API versioning — legacy routes with deprecation headers (US-006)."""
+
+    __SKIP_ALL__: bool = False
+
+    # ------------------------------------------------------------------ #
+    #  Legacy route: /login                                                #
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    def test_legacy_login_returns_deprecation_headers(self):
+        """Legacy /login proxies to /api/v1/login and adds Deprecation headers."""
+        res = self.client.post(
+            "/login",
+            json=dict(email="guest_active@xyz.com", password="2222"),
+        )
+        self.assertIn("Deprecation", res.headers)
+        self.assertEqual("true", res.headers["Deprecation"])
+        self.assertIn("Sunset", res.headers)
+        self.assertIn("Link", res.headers)
+        self.assertIn("/api/v1/login", res.headers["Link"])
+        # Proxy must return the same HTTP status as the versioned route
+        self.assertEqual(200, res.status_code)
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    def test_legacy_login_response_matches_versioned_route(self):
+        """Legacy /login returns the same HTTP status as /api/v1/login."""
+        payload = dict(email="guest_active@xyz.com", password="2222")
+        # Use separate client instances to avoid session collision
+        legacy_res = self.app.test_client().post("/login", json=payload)
+        versioned_res = self.app.test_client().post(
+            "/api/v1/login", json=payload
+        )
+        # Both should succeed
+        self.assertEqual(200, legacy_res.status_code)
+        self.assertEqual(200, versioned_res.status_code)
+        # Both should have same email in payload
+        legacy_data = json.loads(legacy_res.data)
+        versioned_data = json.loads(versioned_res.data)
+        self.assertEqual(
+            legacy_data["data"].get("user"),
+            versioned_data["data"].get("user"),
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Legacy route: /signup                                               #
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    def test_legacy_signup_returns_deprecation_headers(self):
+        """Legacy /signup proxies to /api/v1/signup and adds Deprecation headers."""
+        payload = {
+            "username": "depr_usr_test",
+            "role": "Guest",
+            "email": "depr_usr_test@example.com",
+            "password": "P@ssw0rd!2025",
+        }
+        res = self.client.post("/signup", json=payload)
+        self.assertIn("Deprecation", res.headers)
+        self.assertEqual("true", res.headers["Deprecation"])
+        self.assertIn("Sunset", res.headers)
+        self.assertIn("Link", res.headers)
+        self.assertIn("/api/v1/signup", res.headers["Link"])
+
+    # ------------------------------------------------------------------ #
+    #  Legacy route: /role/add                                             #
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    def test_legacy_role_add_returns_deprecation_headers(self):
+        """Legacy /role/add proxies to /api/v1/role/add and adds Deprecation headers."""
+        login_res = self.client.post(
+            "/api/v1/login",
+            json=dict(email="guest_active@xyz.com", password="2222"),
+        )
+        self.assertEqual(200, login_res.status_code)
+        login_data = json.loads(login_res.data)
+        login_data["data"]["role"] = "Artist"
+        res = self.client.post("/role/add", json=login_data)
+        self.assertIn("Deprecation", res.headers)
+        self.assertEqual("true", res.headers["Deprecation"])
+        self.assertIn("Sunset", res.headers)
+        self.assertIn("Link", res.headers)
+        self.assertIn("/api/v1/role/add", res.headers["Link"])
+
+    # ------------------------------------------------------------------ #
+    #  Versioned routes must NOT carry Deprecation headers                 #
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    def test_versioned_routes_do_not_have_deprecation_headers(self):
+        """/api/v1/... routes do NOT return Deprecation headers."""
+        res = self.client.post(
+            "/api/v1/login",
+            json=dict(email="guest_active@xyz.com", password="2222"),
+        )
+        self.assertEqual(200, res.status_code)
+        self.assertNotIn("Deprecation", res.headers)
+        self.assertNotIn("Sunset", res.headers)
+        self.assertNotIn("Link", res.headers)
+
+    # ------------------------------------------------------------------ #
+    #  Unknown API version must return 404                                 #
+    # ------------------------------------------------------------------ #
+
+    @unittest.skipIf(
+        __SKIP_ALL__, "Deactivate to execute latest created test."
+    )
+    def test_unknown_api_version_returns_404(self):
+        """Requests to an unregistered /api/vN/... return 404."""
+        res = self.client.post(
+            "/api/v99/login",
+            json=dict(email="x@x.com", password="p"),
+        )
+        self.assertEqual(404, res.status_code)

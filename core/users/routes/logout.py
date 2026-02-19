@@ -19,14 +19,7 @@ from core.users.models import GwUser, RefreshToken
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_LOGOUT: str = "".join([BASE_ROUTE, "/logout"])
 
-
-@users_bp.route(ROUTE_LOGOUT, methods=["POST"])
 @users_bp.route("/logout", methods=["POST"])
 @authorization_guard
 @validate_generic_payload
@@ -39,7 +32,7 @@ def logout():
         Response: the response to the index page.
     """
     json = request.get_json()
-    jwt = json["data"]["jwt"]
+    jwt = json["data"]["access_token"]
     jwt_decoded = decode_jwt(jwt)
     user = GwUser.get_by_id(jwt_decoded[JWT_ENCODING_PARAM_1])
     user.jwt_session_id = None

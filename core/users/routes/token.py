@@ -26,14 +26,7 @@ from core.users.models import GwUser, RefreshToken
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_REFRESH_TOKEN: str = "".join([BASE_ROUTE, "/token/refresh"])
 
-
-@users_bp.route(ROUTE_REFRESH_TOKEN, methods=["POST"])
 @users_bp.route("/token/refresh", methods=["POST"])
 @limiter.limit(
     lambda: current_app.config.get("RATE_LIMIT_LOGIN", "1000/minute")
@@ -193,14 +186,13 @@ def refresh_token():
 
         # Create new token record with same family ID
         new_token_record = RefreshToken(
-            token=new_refresh_token_hash,
             user_id=user.id,
             family_id=refresh_token_record.family_id,  # Keep same family
-            created_on=datetime.utcnow(),
             expires_on=datetime.utcnow()
             + timedelta(minutes=JWT_REFRESH_TOKEN_LIFETIME),
-            revoked=False,
         )
+        new_token_record.token = new_refresh_token_hash
+        new_token_record.revoked = False
 
         db.session.add(new_token_record)
         db.session.commit()

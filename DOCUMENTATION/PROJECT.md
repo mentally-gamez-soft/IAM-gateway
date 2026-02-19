@@ -1202,3 +1202,36 @@ gitgraph
 | TASK-005-3 | `core/users/routes/health.py`, `core/users/routes/__init__.py` | Applied `@csrf.exempt` decorator on both endpoints (imported from `core`); registered `health` module in blueprint imports |
 | TASK-005-4 | `Dockerfile`, `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Added `HEALTHCHECK` instruction to Dockerfile final stage using `wget --spider`; added `healthcheck` blocks to dev compose (app service) and prod compose (app service + nginx service) |
 | TASK-005-5 | `tests/test_health.py` *(new)* | 20-test suite across 2 classes: `HealthLivenessTestCase` (7 tests — status 200, JSON schema, `status`/`timestamp`/`version` fields, no auth, no CSRF, no DB calls) and `HealthReadinessTestCase` (13 tests — DB up → 200, DB fail → 503, `not_ready` status, `checks` dict keys, SMTP skipped, password_api skip on empty URL, no auth, CSRF exempt) |
+
+---
+
+### US-006 — Implement Consistent API Versioning via URL Prefix
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-006-api-versioning` |
+| **PR** | _(pending)_ |
+| **Status** | QA Testing |
+| **Started** | 2026-02-19 |
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-006-1 | `core/users/__init__.py`, `core/__init__.py`, `core/users/routes/*.py` | Added `url_prefix="/api/v1"` to `users_bp`; extracted `health_bp` (no prefix, keeps `/health` & `/ready` at root); removed `API_PREFIX`, `BASE_ROUTE`, and duplicate route decorators from all route files; registered `health_bp` and `legacy_bp` in `register_blueprints()` |
+| TASK-006-2 | `core/users/routes/legacy.py` *(new)* | Created `legacy_bp` Blueprint (no prefix) with 10 backward-compatible unversioned routes (`/signup`, `/login`, `/logout`, `/confirm/<token>`, `/resend-confirmation`, `/role/add`, `/forgot-password`, `/reset-password/<token>`, `/token/refresh`); each handler proxies to its versioned counterpart and injects `Deprecation: true`, `Sunset: 2026-09-01`, `Link` headers via `after_this_request` |
+| TASK-006-3 | `static/swagger-docs/swagger.json` | Updated `basePath` from `/Service-Name/api/v1.0.0a` to `/api/v1`; replaced dummy `/translate` path with all real API paths; bumped API version to `1.0.0` |
+| TASK-006-4 | `tests/__init__.py`, `tests/test_standard_routes.py` | Updated all helper methods and direct URL references to `/api/v1/` prefix (17 replacements); added `ApiVersioningTestCase` class with 6 tests covering legacy deprecation headers, versioned-route absence of headers, and unknown-version 404 |
+| TASK-006-5 | `DOCUMENTATION/API_MIGRATION_GUIDE.md` *(new)*, `README.md`, `DOCUMENTATION/PROJECT.md` | Created migration guide with route mapping table, deprecation header examples, `access_token` rename notice, and migration timeline; updated README API endpoints section with `/api/v1/` prefix and migration note |
+
+#### Pre-existing bugs fixed as part of this US
+
+| File | Bug | Fix |
+|---|---|---|
+| `core/auth/jwt/jwt_handler.py` | `from application import db` — `db` lives in `core`, not `application` | Changed to `from core import db` |
+| `core/auth/jwt/jwt_handler.py` | `RefreshToken(token=..., created_on=..., revoked=...)` used constructor kwargs not defined in `__init__` | Use `RefreshToken(user_id, expires_on, family_id)` then set attributes directly |
+| `core/users/routes/login.py` | `user_id=user.id` passed UUID object to JWT encode — not JSON-serializable | Changed to `str(user.id)` |
+| `core/users/routes/login.py` | JWT payload missing `JWT_ENCODING_PARAM_1` (`GW-user-ID`) — caused `KeyError` in logout/role-add decode | Added `JWT_ENCODING_PARAM_1: str(user.id)` to `payload_data` |
+| `core/users/routes/token.py` | Same `RefreshToken` constructor kwargs issue as above | Fixed same way |
+| `core/auth/auth_guard.py`, `core/auth/payload_validator.py`, `core/users/routes/logout.py`, `core/users/routes/roles.py`, `core/users/routes/sanity_check.py`, `core/users/routes/login.py`, `core/users/routes/signup.py`, `core/users/routes/email_activation.py` | Token key name `jwt` not renamed to `access_token` after the dual-token refactor (US-003) | Renamed all `"jwt"` key references to `"access_token"` in request parsing, response building, and test assertions |
+| `tests/__init__.py` | `tearDown()` did not delete `RefreshToken` records — FK constraint prevented user deletion, causing `UniqueViolation` in subsequent tests | Added `db.session.query(RefreshToken).delete()` before user deletion |

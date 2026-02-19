@@ -57,9 +57,14 @@ def register_blueprints(app):
         app: the flask app.
     """
     # Register the Blueprints
-    from core.users import users_bp
+    from core.users import health_bp, users_bp
 
     app.register_blueprint(users_bp)
+    app.register_blueprint(health_bp)
+
+    from core.users.routes.legacy import legacy_bp
+
+    app.register_blueprint(legacy_bp)
 
     from core.swagger.swagger_config import SWAGGER_URL, swaggerui_blueprint
 

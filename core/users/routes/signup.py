@@ -38,17 +38,7 @@ from core.users.models import GwUser
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_SIGNUP: str = "".join([BASE_ROUTE, "/signup"])
 
-
-@users_bp.route(
-    ROUTE_SIGNUP,
-    methods=("POST",),
-)
 @users_bp.route(
     "/signup",
     methods=("POST",),
@@ -65,7 +55,7 @@ def signup():
                 {
                     "data": {
                         "user": json["data"]["user"],
-                        "jwt": json["data"]["jwt"],
+                        "access_token": json["data"]["access_token"],
                     },
                     "message": __WELCOME_BACK,
                     "status": __RESPONSE_STATUS_200,
@@ -236,7 +226,7 @@ def signup():
                 {
                     "data": {
                         "user": encode_as_base64(str(user.id)),
-                        "jwt": jwt_token,
+                        "access_token": jwt_token,
                     },
                     "status": __RESPONSE_STATUS_200,
                     "message": __SIGNUP_SUCCESSFUL,

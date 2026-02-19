@@ -27,13 +27,6 @@ from core.users.models import GwUser
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_FORGOT_PASSWORD: str = "".join([BASE_ROUTE, "/forgot-password"])
-ROUTE_RESET_PASSWORD: str = "".join([BASE_ROUTE, "/reset-password/<token>"])
-
 # Config imports
 WS_SCORING_PASSWORD_URL_API = (
     current_app.config.get("WS_SCORING_PASSWORD_URL_API")
@@ -42,7 +35,6 @@ WS_SCORING_PASSWORD_URL_API = (
 )
 
 
-@users_bp.route(ROUTE_FORGOT_PASSWORD, methods=["POST"])
 @users_bp.route("/forgot-password", methods=["POST"])
 @limiter.limit(
     lambda: current_app.config.get("RATE_LIMIT_FORGOT_PASSWORD", "3/hour")
@@ -127,7 +119,6 @@ def forgot_password():
         )
 
 
-@users_bp.route(ROUTE_RESET_PASSWORD, methods=["POST"])
 @users_bp.route("/reset-password/<token>", methods=["POST"])
 def reset_password(token):
     """

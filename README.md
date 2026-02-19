@@ -21,37 +21,47 @@ A set of tools is provided to help you to create, run and stop the docker contai
 ![Alt text](technology_stack_IAM-GW.svg)
 
 ## API Endpoints
+
+> **API Version**: All endpoints are now prefixed with `/api/v1/` (US-006).  
+> Legacy unversioned routes (e.g. `/login`) remain available until **2026-09-01** with deprecation headers.  
+> See [DOCUMENTATION/API_MIGRATION_GUIDE.md](DOCUMENTATION/API_MIGRATION_GUIDE.md) for the full migration guide.
+
 ### Sanity check
-    The check is located at home "/"
+    The check is located at "/api/v1/"
 
 ### Signup
-    The signup endpoint is located at "/signup"
+    The signup endpoint is located at "POST /api/v1/signup"
+    Legacy: POST /signup (deprecated — sunset 2026-09-01)
 
 ### Login
-    The login endpoint is located at "/login"
+    The login endpoint is located at "POST /api/v1/login"
+    Legacy: POST /login (deprecated — sunset 2026-09-01)
+    Response now includes access_token, refresh_token, token_type, expires_in
 
 ### Logout
-    The logout endpoint is located at "/logout"
+    The logout endpoint is located at "POST /api/v1/logout"
+    Legacy: POST /logout (deprecated — sunset 2026-09-01)
 
 ### Activation account
-    The activation account endpoint is located at "/confirm/<token>"
+    The activation account endpoint is located at "GET /api/v1/confirm/<token>"
+    Legacy: GET /confirm/<token> (deprecated — sunset 2026-09-01)
 
 ### Forgot password
-    The forgot password endpoint is located at "/forgot-password"
-    Request: POST /forgot-password with {"email": "user@example.com"}
+    The forgot password endpoint is located at "POST /api/v1/forgot-password"
+    Legacy: POST /forgot-password (deprecated — sunset 2026-09-01)
     Always returns 200 for security (prevents email enumeration)
     Rate limited to 3 requests per hour
 
 ### Reset password
-    The reset password endpoint is located at "/reset-password/<token>"
-    Request: POST /reset-password/<token> with {"new_password": "..."}
+    The reset password endpoint is located at "POST /api/v1/reset-password/<token>"
+    Legacy: POST /reset-password/<token> (deprecated — sunset 2026-09-01)
     Validates token expiration (30 minutes by default)
     Requires password strength validation
     Clears JWT session to force re-login
 
 ### Refresh Token
-    The token refresh endpoint is located at "/token/refresh"
-    Request: POST /token/refresh with refresh token in Authorization header or Body
+    The token refresh endpoint is located at "POST /api/v1/token/refresh"
+    Legacy: POST /token/refresh (deprecated — sunset 2026-09-01)
     Returns new access_token (15 min expiration) + refresh_token (7 days expiration)
     Supports token rotation with family tracking for security breach detection
     Replayed/revoked tokens trigger family-wide revocation (401 response)

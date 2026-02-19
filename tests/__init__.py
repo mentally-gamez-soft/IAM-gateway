@@ -3,7 +3,12 @@
 import unittest
 
 from core import create_app, db
-from core.users.models import GwUser, GwUserRole, StatsApiEndpoints
+from core.users.models import (
+    GwUser,
+    GwUserRole,
+    RefreshToken,
+    StatsApiEndpoints,
+)
 
 
 class BaseTestClass(unittest.TestCase):
@@ -29,7 +34,8 @@ class BaseTestClass(unittest.TestCase):
     def tearDown(self):
         """Destroy the data set after each test."""
         with self.app.app_context():
-            # Delete all the data from the DB
+            # Delete all the data from the DB (order matters for FK constraints)
+            db.session.query(RefreshToken).delete()
             db.session.query(GwUserRole).delete()
             db.session.query(GwUser).delete()
             db.session.query(StatsApiEndpoints).delete()
@@ -71,7 +77,7 @@ class BaseTestClass(unittest.TestCase):
             _type_: _description_
         """
         return self.client.post(
-            "/login",
+            "/api/v1/login",
             json=dict(email=email, password=password),
             # follow_redirects=True,
         )
@@ -83,7 +89,7 @@ class BaseTestClass(unittest.TestCase):
             Response: the response
         """
         return self.client.post(
-            "/logout",
+            "/api/v1/logout",
             json=payload,
         )
 
@@ -94,6 +100,6 @@ class BaseTestClass(unittest.TestCase):
             Response: the response
         """
         return self.client.post(
-            "/role/add",
+            "/api/v1/role/add",
             json=payload,
         )

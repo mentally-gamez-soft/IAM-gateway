@@ -32,19 +32,7 @@ from core.users.models import GwUser, GwUserRole
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_ROLE_ADD: str = "".join([BASE_ROUTE, "/role/add"])
 
-
-@users_bp.route(
-    ROUTE_ROLE_ADD,
-    methods=[
-        "POST",
-    ],
-)
 @users_bp.route(
     "/role/add",
     methods=[
@@ -67,7 +55,7 @@ def add_role():
     )
     json = request.get_json()
 
-    jwt = json["data"]["jwt"]
+    jwt = json["data"]["access_token"]
     role = json["data"]["role"]
 
     jwt_decoded = decode_jwt(jwt)
@@ -90,7 +78,7 @@ def add_role():
             {
                 "data": {
                     "user": json["data"]["user"],
-                    "jwt": new_jwt,
+                    "access_token": new_jwt,
                 },
                 "message": __ROLE_ADD_SUCCESSFUL,
                 "status": __RESPONSE_STATUS_200,

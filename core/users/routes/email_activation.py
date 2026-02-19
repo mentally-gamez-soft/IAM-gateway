@@ -46,17 +46,7 @@ from core.users.models import GwUser
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_ACTIVATE_USER: str = "".join([BASE_ROUTE, "/confirm/<token>"])
-ROUTE_SEND_CONFIRMATION_EMAIL: str = "".join(
-    [BASE_ROUTE, "/resend-confirmation"]
-)
 
-
-@users_bp.route(ROUTE_ACTIVATE_USER, methods=["GET"])
 @users_bp.route("/confirm/<token>", methods=["GET"])
 def confirm_email(token):
     """Define the endpoint for validating and activating a user account.
@@ -112,7 +102,7 @@ def confirm_email(token):
                 {
                     "data": {
                         "user": encode_as_base64(str(user.id)),
-                        "jwt": jwt,
+                        "access_token": jwt,
                     },
                     "message": __ACTIVATION_SUCCESSFUL,
                     "status": __RESPONSE_STATUS_200,
@@ -134,7 +124,7 @@ def confirm_email(token):
                 {
                     "data": {
                         "user": encode_as_base64(str(user.id)),
-                        "jwt": jwt,
+                        "access_token": jwt,
                     },
                     "message": __DEMAND_RENEW_ACTIVATION,
                     "status": __RESPONSE_STATUS_403,
@@ -149,12 +139,6 @@ def confirm_email(token):
         )
 
 
-@users_bp.route(
-    ROUTE_SEND_CONFIRMATION_EMAIL,
-    methods=[
-        "GET",
-    ],
-)
 @users_bp.route(
     "/resend-confirmation",
     methods=[
@@ -217,7 +201,7 @@ def resend_confirmation_email():
                     {
                         "data": {
                             "user": encode_as_base64(str(user.id)),
-                            "jwt": jwt_token,
+                            "access_token": jwt_token,
                         },
                         "status": __RESPONSE_STATUS_200,
                         "message": __EMAIL_RESENT,
@@ -237,7 +221,7 @@ def resend_confirmation_email():
                 {
                     "data": {
                         "user": encode_as_base64(str(user.id)),
-                        "jwt": jwt_token,
+                        "access_token": jwt_token,
                     },
                     "status": __RESPONSE_STATUS_200,
                     "message": __ACCOUNT_ALREADY_ACTIVATED,
