@@ -19,7 +19,7 @@ from flask import current_app, jsonify
 from sqlalchemy import text
 
 from core import csrf, db
-from core.users import users_bp
+from core.users import health_bp
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 DEPENDENCY_CHECK_TIMEOUT: int = 3
 
 
-@users_bp.route("/health", methods=["GET"])
+@health_bp.route("/health", methods=["GET"])
 @csrf.exempt
 def health():
     """Liveness probe — returns 200 if the application process is running.
@@ -53,7 +53,7 @@ def health():
     )
 
 
-@users_bp.route("/ready", methods=["GET"])
+@health_bp.route("/ready", methods=["GET"])
 @csrf.exempt
 def ready():
     """Readiness probe — returns 200 if all critical dependencies are reachable.

@@ -33,7 +33,7 @@ def validate_generic_payload(f):
     def decorated_function(*args, **kwargs):
         json = request.get_json()
         try:
-            jwt = json["data"]["jwt"]
+            jwt = json["data"]["access_token"]
         except:
             return (
                 jsonify(

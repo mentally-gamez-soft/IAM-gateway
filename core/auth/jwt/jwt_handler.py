@@ -137,7 +137,7 @@ def generate_token_pair(user_id: str, payload_data: dict) -> dict:
     import uuid
     from datetime import datetime, timedelta
 
-    from application import db
+    from core import db
     from core.users.models import RefreshToken
 
     # Generate access token with short lifetime
@@ -161,13 +161,12 @@ def generate_token_pair(user_id: str, payload_data: dict) -> dict:
 
     # Store refresh token in database
     refresh_token_record = RefreshToken(
-        token=refresh_token_hash,
         user_id=user_id,
         family_id=family_id,
-        created_on=now,
         expires_on=expires_on,
-        revoked=False,
     )
+    refresh_token_record.token = refresh_token_hash
+    refresh_token_record.revoked = False
 
     try:
         db.session.add(refresh_token_record)

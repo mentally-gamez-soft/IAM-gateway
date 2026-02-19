@@ -40,14 +40,7 @@ from core.users.models import GwUser
 
 logger = logging.getLogger(__name__)
 
-API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
-API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
-ROUTE_LOGIN: str = "".join([BASE_ROUTE, "/login"])
 
-
-@users_bp.route(ROUTE_LOGIN, methods=["POST"])
 @users_bp.route("/login", methods=["POST"])
 @limiter.limit(lambda: current_app.config.get("RATE_LIMIT_LOGIN", "5/minute"))
 @count_api_calls
@@ -61,7 +54,7 @@ def login():
                 {
                     "data": {
                         "user": json["data"]["user"],
-                        "jwt": json["data"]["jwt"],
+                        "access_token": json["data"]["access_token"],
                     },
                     "message": __WELCOME_BACK,
                     "status": __RESPONSE_STATUS_200,
@@ -87,8 +80,9 @@ def login():
 
             # Generate dual-token pair (access + refresh tokens)
             token_pair = generate_token_pair(
-                user_id=user.id,
+                user_id=str(user.id),
                 payload_data={
+                    JWT_ENCODING_PARAM_1: str(user.id),
                     JWT_ENCODING_PARAM_2: GwUser.get_user_roles_by_id(user.id),
                     JWT_ENCODING_PARAM_3: user.email,
                 },

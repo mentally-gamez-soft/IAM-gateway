@@ -19,12 +19,9 @@ from core.users import users_bp
 logger = logging.getLogger(__name__)
 
 API_TITLE: str = "{}".format(env.get("APP_NAME", "Service-Name"))
-API_PREFIX: str = "/{}/api/".format(API_TITLE)
 API_VERSION: str = "{}".format(env.get("APP_VERSION", "v1.0.0a"))
-BASE_ROUTE: str = "".join([API_PREFIX, API_VERSION])
 
 
-@users_bp.route(BASE_ROUTE, methods=["GET"])
 @users_bp.route("/", methods=["GET"])
 def default():
     """Define a test endpoint to check the webservice status."""
@@ -64,11 +61,10 @@ def protected():
             {
                 "data": {
                     "user": json["data"]["user"],
-                    "jwt": json["data"]["jwt"],
+                    "access_token": json["data"]["access_token"],
                 },
-                "message": (
-                    "Welcome to {} service. (You're using the version {})"
-                    .format(API_TITLE, API_VERSION)
+                "message": "Welcome to {} service. (You're using the version {})".format(
+                    API_TITLE, API_VERSION
                 ),
                 "status": __RESPONSE_STATUS_200,
             }
@@ -99,11 +95,10 @@ def protected_with_role():
             {
                 "data": {
                     "user": json["data"]["user"],
-                    "jwt": json["data"]["jwt"],
+                    "access_token": json["data"]["access_token"],
                 },
-                "message": (
-                    "Welcome to {} service. (You're using the version {})"
-                    .format(API_TITLE, API_VERSION)
+                "message": "Welcome to {} service. (You're using the version {})".format(
+                    API_TITLE, API_VERSION
                 ),
                 "status": __RESPONSE_STATUS_200,
             }
