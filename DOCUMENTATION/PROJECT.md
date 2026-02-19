@@ -943,6 +943,7 @@ gitgraph
 | **Description** | As a **DevOps engineer**, I want dedicated `/health` and `/ready` endpoints, so that container orchestrators and load balancers can determine application status. The `/health` endpoint should return 200 if the process is alive (liveness probe). The `/ready` endpoint should verify database connectivity and external service availability before returning 200 (readiness probe). These endpoints should bypass authentication and CSRF. |
 | **Priority** | **High** |
 | **Estimated Cost** | **2 Story Points** (~1 day) |
+| **Status** | **QA Testing** |
 
 ---
 
@@ -1180,3 +1181,23 @@ gitgraph
 | TASK-004-3 | `server/config/logs.py`, `core/__init__.py` | Implemented `RequestContextFilter(logging.Filter)` that injects request metadata into every log record; added `@app.before_request` hook `inject_request_id()` that reads `X-Request-ID` header or generates a UUID4 stored in `flask.g.request_id` |
 | TASK-004-4 | `config/local.py`, `config/dev.py`, `config/testing.py`, `config/staging.py`, `config/prod.py` | Set `LOG_FORMAT = "text"` in local/dev/testing; `LOG_FORMAT = "json"` in staging/prod |
 | TASK-004-5 | `tests/test_logging.py` | 20-test suite across 5 classes: `TestJsonLogFormatter` (8), `TestTextLogFormatter` (1), `TestRequestContextFilter` (3), `TestRequestContextFilterInFlask` (3), `TestEnvironmentSpecificLogFormats` (5) |
+
+---
+
+### US-005 — Health Check and Readiness Probes
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-005-health-readiness-endpoints` |
+| **Status** | QA Testing |
+| **Started** | 2026-02-18 |
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-005-1 | `core/users/routes/health.py` *(new)* | Added `GET /health` liveness endpoint — returns `{"status": "ok", "timestamp": "<ISO 8601>", "version": "<APP_VERSION>"}` with HTTP 200; no authentication, no DB calls |
+| TASK-005-2 | `core/users/routes/health.py` *(new)* | Added `GET /ready` readiness endpoint — runs `_check_database()` (SELECT 1 via SQLAlchemy), `_check_password_api()` (HTTP HEAD with 3 s timeout), `_check_smtp()` (TCP connect with 3 s timeout, skipped when `APP_SEND_EMAILS=False`); returns HTTP 200 when DB is reachable, HTTP 503 otherwise |
+| TASK-005-3 | `core/users/routes/health.py`, `core/users/routes/__init__.py` | Applied `@csrf.exempt` decorator on both endpoints (imported from `core`); registered `health` module in blueprint imports |
+| TASK-005-4 | `Dockerfile`, `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Added `HEALTHCHECK` instruction to Dockerfile final stage using `wget --spider`; added `healthcheck` blocks to dev compose (app service) and prod compose (app service + nginx service) |
+| TASK-005-5 | `tests/test_health.py` *(new)* | 20-test suite across 2 classes: `HealthLivenessTestCase` (7 tests — status 200, JSON schema, `status`/`timestamp`/`version` fields, no auth, no CSRF, no DB calls) and `HealthReadinessTestCase` (13 tests — DB up → 200, DB fail → 503, `not_ready` status, `checks` dict keys, SMTP skipped, password_api skip on empty URL, no auth, CSRF exempt) |
