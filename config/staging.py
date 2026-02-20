@@ -23,6 +23,13 @@ LOG_FORMAT = "json"
 SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 10))
 SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 15))
 
+# CORS — staging frontend origin (override via CORS_ORIGINS env var)
+CORS_ORIGINS = (
+    env.get("CORS_ORIGINS", "https://staging.example.com").split(",")
+    if env.get("CORS_ORIGINS", "https://staging.example.com").strip() != "*"
+    else "*"
+)
+
 # Rate limiting - moderate for staging
 RATE_LIMIT_LOGIN = "10/minute"
 RATE_LIMIT_SIGNUP = "5/minute"

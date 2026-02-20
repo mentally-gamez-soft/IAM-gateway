@@ -25,6 +25,9 @@ SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 3))
 SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 5))
 LOG_FORMAT = "text"
 
+# CORS — allow all origins locally for convenience
+CORS_ORIGINS = "*"
+
 # Rate limiting - very permissive for local dev
 RATE_LIMIT_LOGIN = "100/minute"
 RATE_LIMIT_SIGNUP = "100/minute"

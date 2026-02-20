@@ -161,6 +161,35 @@ JWT_REFRESH_TOKEN_LIFETIME = int(
 )  # 7 days (10080 minutes) default
 
 ################################################################
+# ### CORS configuration                                   ####
+################################################################
+# CORS_ORIGINS: list of allowed origins, or "*" for all.
+# Supports a comma-separated string when provided via env var so
+# it can be overridden in .env files without redeploying.
+_cors_origins_raw: str = env.get("CORS_ORIGINS", "*")
+if _cors_origins_raw.strip() == "*":
+    CORS_ORIGINS = "*"
+else:
+    CORS_ORIGINS = [
+        o.strip() for o in _cors_origins_raw.split(",") if o.strip()
+    ]
+
+CORS_METHODS: list = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+CORS_ALLOW_HEADERS: list = [
+    "Content-Type",
+    "Authorization",
+    "X-CSRFToken",
+    "X-Request-ID",
+]
+CORS_EXPOSE_HEADERS: list = [
+    "X-CSRFToken",
+    "X-RateLimit-Limit",
+    "X-RateLimit-Remaining",
+]
+CORS_SUPPORTS_CREDENTIALS: bool = True
+CORS_MAX_AGE: int = 600  # preflight cache — 10 minutes
+
+################################################################
 # ### API with token auth. CSRF protection disabled   ##########
 ################################################################
 WTF_CSRF_ENABLED = False

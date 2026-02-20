@@ -26,6 +26,9 @@ SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 3))
 WTF_CSRF_ENABLED = False
 LOG_FORMAT = "text"
 
+# CORS — allow all origins during automated tests
+CORS_ORIGINS = "*"
+
 # Rate limiting - very high thresholds and memory backend for tests
 RATE_LIMIT_LOGIN = "1000/minute"
 RATE_LIMIT_SIGNUP = "1000/minute"

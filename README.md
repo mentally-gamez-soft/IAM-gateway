@@ -196,6 +196,85 @@ Common settings (all environments, overridable via `.env.*` files):
 
 `saturated: true` is set when utilization exceeds 80 %.
 
+---
+
+## CORS Configuration (US-009)
+
+The gateway uses [Flask-CORS](https://flask-cors.readthedocs.io/) to add
+`Access-Control-*` headers to every API response, enabling browser-based
+clients to call the API across origins.
+
+### Per-environment allowed origins
+
+| Environment | `CORS_ORIGINS` |
+|---|---|
+| `local` | `*` (all origins) |
+| `dev` | `*` (all origins) |
+| `testing` | `*` (all origins) |
+| `staging` | `https://staging.example.com` |
+| `prod` | `https://app.example.com` |
+
+Override with the `CORS_ORIGINS` environment variable (comma-separated list or
+`*`).
+
+### CORS settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `CORS_ORIGINS` | `*` | Allowed origin(s) — `*` or a comma-separated list of URLs |
+| `CORS_METHODS` | `GET,POST,PUT,DELETE,OPTIONS` | Allowed HTTP methods |
+| `CORS_ALLOW_HEADERS` | `Content-Type,Authorization,X-CSRFToken,X-Request-ID` | Headers allowed on requests |
+| `CORS_EXPOSE_HEADERS` | `X-CSRFToken,X-RateLimit-Limit,X-RateLimit-Remaining` | Headers exposed to the browser |
+| `CORS_SUPPORTS_CREDENTIALS` | `True` | `Access-Control-Allow-Credentials` |
+| `CORS_MAX_AGE` | `600` | Preflight cache duration in seconds |
+
+### Manual curl verification
+
+```bash
+# --- 1. Simple GET — check Allow-Origin response header ---
+curl -i -H "Origin: http://localhost:3000" \
+     http://localhost:3456/health
+
+# --- 2. OPTIONS preflight — check all CORS headers ---
+curl -i -X OPTIONS \
+     -H "Origin: http://localhost:3000" \
+     -H "Access-Control-Request-Method: POST" \
+     -H "Access-Control-Request-Headers: Content-Type,Authorization" \
+     http://localhost:3456/health
+
+# --- 3. Verify Access-Control-Allow-Credentials: true ---
+curl -s -o /dev/null -D - \
+     -H "Origin: http://localhost:3000" \
+     http://localhost:3456/health \
+  | grep -i "Access-Control"
+
+# --- 4. Readiness probe also includes CORS headers ---
+curl -i -H "Origin: http://localhost:3000" \
+     http://localhost:3456/ready
+
+# --- 5. CORS headers present on 404 responses ---
+curl -i -H "Origin: http://localhost:3000" \
+     http://localhost:3456/does-not-exist
+```
+
+**Expected headers** on any response:
+
+```
+Access-Control-Allow-Origin: http://localhost:3000
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-CSRFToken, X-RateLimit-Limit, X-RateLimit-Remaining
+```
+
+**Expected headers** on a preflight `OPTIONS` response:
+
+```
+Access-Control-Allow-Origin: http://localhost:3000
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRFToken, X-Request-ID
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 600
+```
+
 ## Running application
 ## Local development
 

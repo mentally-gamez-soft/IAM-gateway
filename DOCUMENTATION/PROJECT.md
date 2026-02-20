@@ -1284,3 +1284,45 @@ two-step fallback:
 | TASK-018-4 | `DOCUMENTATION/PROJECT.md` | This changelog entry |
 | US-018 | `DOCUMENTATION/USER_STORIES/user_story_018.md` *(new)* | User story definition |
 | TASK-018-1–4 | `DOCUMENTATION/TASKS/task_018_{1,2,3,4}.md` *(new)* | Task definitions |
+
+---
+
+### US-009 — Add Configurable CORS Support
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-009-cors-support` |
+| **PR** | [#16](https://github.com/mentally-gamez-soft/IAM-gateway/pull/16) |
+| **Status** | In Progress |
+| **Started** | 2026-02-20 |
+| **Trello** | [US-009](https://trello.com/c/25GQjdYC) |
+
+#### Problem solved
+
+The IAM Gateway had no CORS headers, preventing browser-based clients from
+calling the API across origins.  Every cross-origin request would be blocked by
+the browser's same-origin policy.
+
+#### Solution
+
+Installed `flask-cors>=4.0.0` and initialized it in `core/__init__.py` after
+blueprint registration.  All CORS settings are driven by Flask config variables
+so they can be overridden per environment.  Production restricts `CORS_ORIGINS`
+to whitelisted domains; local, dev, and testing environments allow `*`.
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-009-1 | `pyproject.toml`, `requirements.txt`, `core/__init__.py`, `config/default.py` | Added `flask-cors>=4.0.0` dependency; initialized `CORS()` in app factory after blueprint registration; added 6 default config variables (`CORS_ORIGINS`, `CORS_METHODS`, `CORS_ALLOW_HEADERS`, `CORS_EXPOSE_HEADERS`, `CORS_SUPPORTS_CREDENTIALS`, `CORS_MAX_AGE`) |
+| TASK-009-2 | `config/local.py`, `config/dev.py`, `config/testing.py`, `config/staging.py`, `config/prod.py`, `config/validate_config.py` | Per-environment `CORS_ORIGINS` overrides; staging/prod default to specific domain strings (overridable via env var); `CORS_ORIGINS` added to config validation |
+| TASK-009-3 | `tests/test_cors.py` *(new)* | 18 tests in 2 classes: `CorsHeadersTestCase` (11) — HTTP-level checks of CORS headers on GET, OPTIONS, 4xx responses; `CorsConfigTestCase` (7) — config variable presence and values |
+
+#### CORS configuration summary
+
+| Variable | Default | local/dev/test | staging | prod |
+|---|---|---|---|---|
+| `CORS_ORIGINS` | `*` | `*` | `https://staging.example.com` | `https://app.example.com` |
+| `CORS_METHODS` | `GET,POST,PUT,DELETE,OPTIONS` | inherited | inherited | inherited |
+| `CORS_SUPPORTS_CREDENTIALS` | `True` | inherited | inherited | inherited |
+| `CORS_MAX_AGE` | `600` s | inherited | inherited | inherited |

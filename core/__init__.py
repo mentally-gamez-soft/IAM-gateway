@@ -3,6 +3,7 @@
 import uuid
 
 from flask import Flask, g, jsonify, request
+from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -151,6 +152,32 @@ def create_app(settings_module="config.dev") -> Flask:
 
     register_blueprints(app)
     print("blueprints plugin loaded.")
+
+    # ── CORS ────────────────────────────────────────────────────────────────
+    CORS(
+        app,
+        origins=app.config.get("CORS_ORIGINS", "*"),
+        methods=app.config.get(
+            "CORS_METHODS", ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        ),
+        allow_headers=app.config.get(
+            "CORS_ALLOW_HEADERS",
+            ["Content-Type", "Authorization", "X-CSRFToken", "X-Request-ID"],
+        ),
+        expose_headers=app.config.get(
+            "CORS_EXPOSE_HEADERS",
+            ["X-CSRFToken", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
+        ),
+        supports_credentials=app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
+        max_age=app.config.get("CORS_MAX_AGE", 600),
+    )
+    app.logger.debug(
+        "CORS initialized: origins=%s supports_credentials=%s max_age=%s",
+        app.config.get("CORS_ORIGINS", "*"),
+        app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
+        app.config.get("CORS_MAX_AGE", 600),
+    )
+    print("CORS plugin loaded.")
 
     register_error_handlers(app)
     print("error handlers loaded.")
