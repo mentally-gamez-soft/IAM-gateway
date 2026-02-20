@@ -1202,3 +1202,45 @@ gitgraph
 | TASK-005-3 | `core/users/routes/health.py`, `core/users/routes/__init__.py` | Applied `@csrf.exempt` decorator on both endpoints (imported from `core`); registered `health` module in blueprint imports |
 | TASK-005-4 | `Dockerfile`, `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Added `HEALTHCHECK` instruction to Dockerfile final stage using `wget --spider`; added `healthcheck` blocks to dev compose (app service) and prod compose (app service + nginx service) |
 | TASK-005-5 | `tests/test_health.py` *(new)* | 20-test suite across 2 classes: `HealthLivenessTestCase` (7 tests — status 200, JSON schema, `status`/`timestamp`/`version` fields, no auth, no CSRF, no DB calls) and `HealthReadinessTestCase` (13 tests — DB up → 200, DB fail → 503, `not_ready` status, `checks` dict keys, SMTP skipped, password_api skip on empty URL, no auth, CSRF exempt) |
+---
+
+### US-018 — Environment-Aware Database Migrations
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-018-environment-aware-migrations` |
+| **PR** | [#14](https://github.com/mentally-gamez-soft/IAM-gateway/pull/14) |
+| **Status** | In Progress |
+| **Started** | 2026-02-20 |
+| **Trello** | [US-018](https://trello.com/c/1Hneaa4s) |
+
+#### Problem solved
+
+`migrations/env.py` previously relied exclusively on Flask's `current_app`
+context (provided by Flask-Migrate) to obtain the database URL.  This was
+fragile in CI/CD pipelines or bare `alembic` invocations where the application
+context is not available.
+
+#### Solution
+
+`migrations/env.py` was redesigned to resolve the database URL through a
+two-step fallback:
+
+1. **Flask application context (primary)** — unchanged behavior for all
+   `flask db` commands.
+2. **`APP_SETTINGS_MODULE` import (fallback)** — when no app context is active,
+   the environment variable `APP_SETTINGS_MODULE` is read, the corresponding
+   config module is imported, and `SQLALCHEMY_DATABASE_URI` is extracted from it.
+
+> The DB password is masked in all log output.  A `RuntimeError` with a clear
+> message is raised when neither path is available.
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-018-1 | `migrations/env.py` | Full redesign: removed module-level `current_app` dependency; added `_get_url_from_settings_module()`, `_try_flask_context()`, `get_database_url()`, `_get_metadata()`, `_process_revision_directives()`; both runners updated for dual-path resolution |
+| TASK-018-3 | `README.md` | Replaced single-line migration commands with a full "Running Database Migrations" section documenting per-environment commands and standalone `alembic` invocation |
+| TASK-018-4 | `DOCUMENTATION/PROJECT.md` | This changelog entry |
+| US-018 | `DOCUMENTATION/USER_STORIES/user_story_018.md` *(new)* | User story definition |
+| TASK-018-1–4 | `DOCUMENTATION/TASKS/task_018_{1,2,3,4}.md` *(new)* | Task definitions |
