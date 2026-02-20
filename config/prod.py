@@ -23,6 +23,13 @@ LOG_FORMAT = "json"
 SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 15))
 SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 25))
 
+# CORS — production whitelisted origins only (override via CORS_ORIGINS env var)
+CORS_ORIGINS = (
+    env.get("CORS_ORIGINS", "https://app.example.com").split(",")
+    if env.get("CORS_ORIGINS", "https://app.example.com").strip() != "*"
+    else "*"
+)
+
 # Rate limiting - strict for production
 RATE_LIMIT_LOGIN = "5/minute"
 RATE_LIMIT_SIGNUP = "3/minute"

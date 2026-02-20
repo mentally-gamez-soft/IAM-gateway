@@ -86,11 +86,16 @@ def validate_env_config(app_config: Config):
         "JWT_REFRESH_TOKEN_LIFETIME",
     ]
 
+    cors_required_vars = [
+        "CORS_ORIGINS",
+    ]
+
     required_vars.extend(gw_required_vars)
     required_vars.extend(resilience_required_vars)
     required_vars.extend(rate_limit_required_vars)
     required_vars.extend(password_reset_required_vars)
     required_vars.extend(jwt_token_required_vars)
+    required_vars.extend(cors_required_vars)
 
     print(required_vars)
     print(
