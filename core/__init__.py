@@ -108,6 +108,33 @@ def create_app(settings_module="config.dev") -> Flask:
     csrf.init_app(app)
     print("csrf plugin loaded.")
 
+    # ── SQLAlchemy engine options (connection pool) ────────────────────────
+    # SQLite (local / testing) uses StaticPool / NullPool which do not accept
+    # pool_size or max_overflow.  For all other backends apply the full set.
+    db_uri: str = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    if db_uri.lower().startswith("sqlite"):
+        engine_opts: dict = {
+            "pool_pre_ping": app.config.get("SQLALCHEMY_POOL_PRE_PING", True),
+        }
+    else:
+        engine_opts = {
+            "pool_size": app.config.get("SQLALCHEMY_POOL_SIZE", 5),
+            "max_overflow": app.config.get("SQLALCHEMY_MAX_OVERFLOW", 10),
+            "pool_recycle": app.config.get("SQLALCHEMY_POOL_RECYCLE", 1800),
+            "pool_pre_ping": app.config.get("SQLALCHEMY_POOL_PRE_PING", True),
+            "pool_timeout": app.config.get("SQLALCHEMY_POOL_TIMEOUT", 30),
+        }
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_opts
+    app.logger.debug(
+        "SQLAlchemy engine options applied: pool_pre_ping=%s"
+        " pool_size=%s max_overflow=%s pool_recycle=%s pool_timeout=%s",
+        engine_opts.get("pool_pre_ping"),
+        engine_opts.get("pool_size", "N/A (SQLite)"),
+        engine_opts.get("max_overflow", "N/A (SQLite)"),
+        engine_opts.get("pool_recycle", "N/A (SQLite)"),
+        engine_opts.get("pool_timeout", "N/A (SQLite)"),
+    )
+
     db.init_app(app)
     print("database plugin loaded.")
 

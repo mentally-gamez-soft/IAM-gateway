@@ -3,7 +3,12 @@
 import unittest
 
 from core import create_app, db
-from core.users.models import GwUser, GwUserRole, StatsApiEndpoints
+from core.users.models import (
+    GwUser,
+    GwUserRole,
+    RefreshToken,
+    StatsApiEndpoints,
+)
 
 
 class BaseTestClass(unittest.TestCase):
@@ -18,6 +23,13 @@ class BaseTestClass(unittest.TestCase):
         with self.app.app_context():
             db.create_all()
 
+            # Clean up any leftover data from previous runs before inserting
+            db.session.query(RefreshToken).delete()
+            db.session.query(GwUserRole).delete()
+            db.session.query(GwUser).delete()
+            db.session.query(StatsApiEndpoints).delete()
+            db.session.commit()
+
             # Create a non active user
             BaseTestClass.create_user(
                 "guest_non_active", "guest_non_active@xyz.com", "1111", False
@@ -29,13 +41,13 @@ class BaseTestClass(unittest.TestCase):
     def tearDown(self):
         """Destroy the data set after each test."""
         with self.app.app_context():
-            # Delete all the data from the DB
+            # Delete all the data from the DB (order matters: FK constraints)
+            db.session.query(RefreshToken).delete()
             db.session.query(GwUserRole).delete()
             db.session.query(GwUser).delete()
             db.session.query(StatsApiEndpoints).delete()
             db.session.commit()
             db.session.remove()
-            # db.drop_all()
 
     @staticmethod
     def create_user(

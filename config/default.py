@@ -37,6 +37,24 @@ SQLALCHEMY_TRACK_MODIFICATIONS = (
     env.get("SQLALCHEMY_TRACK_MODIFICATIONS") == "True"
 )
 
+################################################################
+# ### SQLAlchemy Connection Pool configuration             ####
+################################################################
+# pool_size: number of persistent connections kept open.
+# max_overflow: additional connections allowed beyond pool_size.
+# pool_recycle: seconds after which idle connections are replaced
+#               (prevents stale connections after MySQL/PG firewall drops).
+# pool_pre_ping: issue a lightweight ``SELECT 1`` before every checkout
+#               to detect stale connections and replace them automatically.
+# pool_timeout: seconds to wait for a connection before raising an error.
+SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 5))
+SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 10))
+SQLALCHEMY_POOL_RECYCLE = int(env.get("SQLALCHEMY_POOL_RECYCLE", 1800))
+SQLALCHEMY_POOL_PRE_PING = (
+    env.get("SQLALCHEMY_POOL_PRE_PING", "True").lower() == "true"
+)
+SQLALCHEMY_POOL_TIMEOUT = int(env.get("SQLALCHEMY_POOL_TIMEOUT", 30))
+
 # File uploads management
 MAX_FILE_SIZE = env.get("MAX_FILE_SIZE", 16)  # defaults to 16 MB
 MEDIA_DIR = join(BASE_DIR, env.get("MEDIA_DIR", "media"))

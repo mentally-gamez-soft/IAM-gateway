@@ -102,15 +102,59 @@ def ready():
 # ── Private helpers ────────────────────────────────────────────────────────────
 
 
+def _collect_pool_metrics() -> dict:
+    """Collect SQLAlchemy connection-pool statistics.
+
+    Returns a dict with numeric counters when the underlying pool supports
+    them (QueuePool / AsyncAdaptedQueuePool).  For poolless backends (SQLite
+    NullPool / StaticPool) returns ``{"available": false}``.
+
+    Adds a ``saturated`` flag and a ``utilization_pct`` float so operators
+    can quickly spot pools that are running close to their limit (>80 %
+    utilisation triggers ``saturated: true``).
+
+    Returns:
+        dict: pool metrics or ``{"available": false}`` if unsupported.
+    """
+    try:
+        pool = db.engine.pool
+        pool_size: int = pool.size()
+        checked_in: int = pool.checkedin()
+        checked_out: int = pool.checkedout()
+        overflow: int = pool.overflow()
+        # _max_overflow is a private attribute; fall back gracefully
+        max_overflow: int = getattr(pool, "_max_overflow", 0)
+        capacity: int = pool_size + max_overflow
+        utilization_pct: float = (
+            round(checked_out / capacity * 100, 1) if capacity > 0 else 0.0
+        )
+        return {
+            "available": True,
+            "pool_size": pool_size,
+            "checked_out": checked_out,
+            "checked_in": checked_in,
+            "overflow": overflow,
+            "max_overflow": max_overflow,
+            "utilization_pct": utilization_pct,
+            "saturated": utilization_pct > 80.0,
+        }
+    except AttributeError:
+        # NullPool / StaticPool (SQLite) do not expose size()/checkedin() etc.
+        return {"available": False}
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Pool metrics collection failed: %s", exc)
+        return {"available": False, "detail": str(exc)}
+
+
 def _check_database() -> dict:
     """Execute ``SELECT 1`` to verify database connectivity.
 
     Returns:
-        dict: {"status": "ok"|"error", "detail": "<message>"}
+        dict: {"status": "ok"|"error", "detail": "<message>", "pool": {...}}
     """
     try:
         db.session.execute(text("SELECT 1"))
-        return {"status": "ok"}
+        return {"status": "ok", "pool": _collect_pool_metrics()}
     except Exception as exc:  # noqa: BLE001
         logger.warning("Database readiness check failed: %s", exc)
         return {"status": "error", "detail": str(exc)}
