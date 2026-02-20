@@ -19,6 +19,10 @@ SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_STAGING
 LOG_FORMAT = "json"
 
+# Connection pool — elevated capacity for staging load tests
+SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 10))
+SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 15))
+
 # Rate limiting - moderate for staging
 RATE_LIMIT_LOGIN = "10/minute"
 RATE_LIMIT_SIGNUP = "5/minute"

@@ -18,6 +18,10 @@ SQLALCHEMY_DATABASE_URI = env.get("SQLALCHEMY_DATABASE_URI")
 SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_DEVELOPMENT
 DEBUG = True
+
+# Connection pool — standard footprint for development environment
+SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 5))
+SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 10))
 LOG_FORMAT = "text"
 
 # Rate limiting - relaxed for development

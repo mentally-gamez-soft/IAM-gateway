@@ -81,6 +81,7 @@ A set of tools is provided to help you to create, run and stop the docker contai
 
 ## Structured JSON Logging (US-004)
 
+
 The application supports two log output formats controlled by the `LOG_FORMAT` environment variable:
 
 | `LOG_FORMAT` | Environments | Output |
@@ -131,6 +132,59 @@ Pass `X-Request-ID: <uuid>` in the request header to correlate log entries with 
      - $env:FLASK_ENV="development"
      - $env:APP_SETTINGS_MODULE="config.local"
      - $env:FLASK_DEBUG = "1"
+
+## Database Connection Pooling (US-007)
+
+SQLAlchemy engine options are automatically built from the `SQLALCHEMY_POOL_*`
+config variables and applied before `db.init_app()`.
+
+### Per-environment defaults
+
+| Environment | `SQLALCHEMY_POOL_SIZE` | `SQLALCHEMY_MAX_OVERFLOW` |
+|-------------|----------------------|--------------------------|
+| local       | 3                    | 5                        |
+| testing     | 2                    | 3                        |
+| dev         | 5                    | 10                       |
+| staging     | 10                   | 15                       |
+| prod        | 15                   | 25                       |
+
+Common settings (all environments, overridable via `.env.*` files):
+
+| Variable                   | Default | Description                                      |
+|----------------------------|---------|--------------------------------------------------|
+| `SQLALCHEMY_POOL_PRE_PING` | `True`  | Issue `SELECT 1` on each checkout to detect stale connections |
+| `SQLALCHEMY_POOL_RECYCLE`  | `1800`  | Recycle idle connections after 30 minutes        |
+| `SQLALCHEMY_POOL_TIMEOUT`  | `30`    | Seconds to wait for a free connection            |
+
+> **SQLite** (local/testing) uses `StaticPool`/`NullPool` which do not support
+> `pool_size` or `max_overflow`.  For SQLite the only option applied is
+> `pool_pre_ping`.
+
+### Pool metrics at `/ready`
+
+`GET /ready` exposes real-time pool statistics under `checks.database.pool`:
+
+```json
+{
+  "checks": {
+    "database": {
+      "status": "ok",
+      "pool": {
+        "available": true,
+        "pool_size": 2,
+        "checked_out": 1,
+        "checked_in": 1,
+        "overflow": 0,
+        "max_overflow": 3,
+        "utilization_pct": 33.3,
+        "saturated": false
+      }
+    }
+  }
+}
+```
+
+`saturated: true` is set when utilization exceeds 80 %.
 
 ## Running application
 ## Local development

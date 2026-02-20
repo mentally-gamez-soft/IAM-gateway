@@ -19,6 +19,10 @@ SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_LOCAL
 DEBUG = True
 LOCAL_DEV = True
+
+# Connection pool — reduced footprint for local development
+SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 3))
+SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 5))
 LOG_FORMAT = "text"
 
 # Rate limiting - very permissive for local dev

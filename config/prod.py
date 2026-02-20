@@ -19,6 +19,10 @@ SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_PRODUCTION
 LOG_FORMAT = "json"
 
+# Connection pool — high capacity for production traffic
+SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 15))
+SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 25))
+
 # Rate limiting - strict for production
 RATE_LIMIT_LOGIN = "5/minute"
 RATE_LIMIT_SIGNUP = "3/minute"

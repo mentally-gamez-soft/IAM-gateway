@@ -137,11 +137,11 @@ def generate_token_pair(user_id: str, payload_data: dict) -> dict:
     import uuid
     from datetime import datetime, timedelta
 
-    from application import db
+    from core import db
     from core.users.models import RefreshToken
 
     # Generate access token with short lifetime
-    access_payload = {"sub": user_id, **payload_data}
+    access_payload = {"sub": str(user_id), **payload_data}
     access_token = generate_jwt(
         payload=access_payload, lifetime=JWT_ACCESS_TOKEN_LIFETIME
     )
@@ -159,15 +159,13 @@ def generate_token_pair(user_id: str, payload_data: dict) -> dict:
     now = datetime.utcnow()
     expires_on = now + timedelta(minutes=JWT_REFRESH_TOKEN_LIFETIME)
 
-    # Store refresh token in database
+    # Store refresh token in database (token column set after init via attribute)
     refresh_token_record = RefreshToken(
-        token=refresh_token_hash,
         user_id=user_id,
-        family_id=family_id,
-        created_on=now,
         expires_on=expires_on,
-        revoked=False,
+        family_id=family_id,
     )
+    refresh_token_record.token = refresh_token_hash
 
     try:
         db.session.add(refresh_token_record)

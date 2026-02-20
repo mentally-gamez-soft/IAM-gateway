@@ -31,5 +31,7 @@ def load_user(user_id: uuid):
     Returns:
         user: an instance for the logged in user.
     """
+    if user_id is None:
+        return None  # ← guard prevents loop on anonymous requests
     logger.info("Try to reload the user from session.")
     return GwUser.get_by_id(user_id)

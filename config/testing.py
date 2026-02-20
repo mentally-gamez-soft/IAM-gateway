@@ -19,6 +19,10 @@ SQLALCHEMY_DATABASE_SCHEMA = env.get("SQLALCHEMY_DATABASE_SCHEMA")
 APP_ENV = APP_ENV_TESTING
 DEBUG = True
 TESTING = True
+
+# Connection pool — minimal pool for fast, isolated unit tests
+SQLALCHEMY_POOL_SIZE = int(env.get("SQLALCHEMY_POOL_SIZE", 2))
+SQLALCHEMY_MAX_OVERFLOW = int(env.get("SQLALCHEMY_MAX_OVERFLOW", 3))
 WTF_CSRF_ENABLED = False
 LOG_FORMAT = "text"
 

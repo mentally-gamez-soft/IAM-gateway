@@ -1202,3 +1202,44 @@ gitgraph
 | TASK-005-3 | `core/users/routes/health.py`, `core/users/routes/__init__.py` | Applied `@csrf.exempt` decorator on both endpoints (imported from `core`); registered `health` module in blueprint imports |
 | TASK-005-4 | `Dockerfile`, `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Added `HEALTHCHECK` instruction to Dockerfile final stage using `wget --spider`; added `healthcheck` blocks to dev compose (app service) and prod compose (app service + nginx service) |
 | TASK-005-5 | `tests/test_health.py` *(new)* | 20-test suite across 2 classes: `HealthLivenessTestCase` (7 tests — status 200, JSON schema, `status`/`timestamp`/`version` fields, no auth, no CSRF, no DB calls) and `HealthReadinessTestCase` (13 tests — DB up → 200, DB fail → 503, `not_ready` status, `checks` dict keys, SMTP skipped, password_api skip on empty URL, no auth, CSRF exempt) |
+---
+
+### US-007 — Database Connection Pooling and Health Monitoring
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-007-connection-pooling` |
+| **Status** | In Progress |
+| **Started** | 2026-02-20 |
+| **Trello** | [US-007](https://trello.com/c/HKYZF8zw) |
+
+#### Problem solved
+
+SQLAlchemy was using default engine settings with no connection pool tuning.
+Under load, stale connections were not automatically detected, and there was no
+visibility into pool utilisation.
+
+#### Solution
+
+Added `SQLALCHEMY_POOL_*` configuration variables with per-environment defaults.
+The app factory reads these variables and builds `SQLALCHEMY_ENGINE_OPTIONS` before
+calling `db.init_app()`.  The `/ready` endpoint now includes a `pool` sub-dict under
+`checks.database` exposing real-time saturation metrics.
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-007-1 | `config/default.py`, `config/local.py`, `config/dev.py`, `config/staging.py`, `config/prod.py`, `config/testing.py` | Added `SQLALCHEMY_POOL_SIZE`, `SQLALCHEMY_MAX_OVERFLOW`, `SQLALCHEMY_POOL_RECYCLE`, `SQLALCHEMY_POOL_PRE_PING`, `SQLALCHEMY_POOL_TIMEOUT` to default config; overridden per environment (local 3/5 → prod 15/25) |
+| TASK-007-2 | `core/__init__.py` | Before `db.init_app()` build `SQLALCHEMY_ENGINE_OPTIONS` from config variables; SQLite path skips pool_size/max_overflow (StaticPool incompatibility); options logged at DEBUG level on startup |
+| TASK-007-3 | `core/users/routes/health.py` | Added `_collect_pool_metrics()` helper; `_check_database()` now returns `{"status": "ok", "pool": {...}}` with `pool_size`, `checked_out`, `checked_in`, `overflow`, `max_overflow`, `utilization_pct`, `saturated` |
+| TASK-007-4 | `tests/test_db_pool.py` *(new)* | 18 tests across 4 classes: `PoolConfigTestCase` (6), `PoolMetricsEndpointTestCase` (6), `PoolReconnectionTestCase` (3), `PoolConcurrencyTestCase` (3) |
+
+#### Pre-existing bugs fixed in scope
+
+| File | Bug | Fix |
+|---|---|---|
+| `core/auth/jwt/jwt_handler.py` | `from application import db` caused `ImportError` in test context | Changed to `from core import db` |
+| `core/auth/jwt/jwt_handler.py` | UUID `user_id` passed directly into JWT payload → `TypeError: UUID is not JSON serializable` | Wrapped with `str(user_id)` |
+| `core/auth/jwt/jwt_handler.py` | `RefreshToken(token=..., created_on=..., revoked=...)` passed kwargs not in `__init__` | Aligned constructor call with `RefreshToken.__init__` signature |
+| `tests/__init__.py` | `setUp` created duplicate users if previous `tearDown` was interrupted | Added `RefreshToken` deletion and pre-insert cleanup in both `setUp` and `tearDown` |
