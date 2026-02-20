@@ -1292,7 +1292,7 @@ two-step fallback:
 | Field | Detail |
 |---|---|
 | **Branch** | `feature/US-009-cors-support` |
-| **PR** | TBD |
+| **PR** | [#16](https://github.com/mentally-gamez-soft/IAM-gateway/pull/16) |
 | **Status** | In Progress |
 | **Started** | 2026-02-20 |
 | **Trello** | [US-009](https://trello.com/c/25GQjdYC) |
