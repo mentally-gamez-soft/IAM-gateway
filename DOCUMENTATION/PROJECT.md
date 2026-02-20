@@ -1244,3 +1244,43 @@ calling `db.init_app()`.  The `/ready` endpoint now includes a `pool` sub-dict u
 | `core/auth/jwt/jwt_handler.py` | UUID `user_id` passed directly into JWT payload → `TypeError: UUID is not JSON serializable` | Wrapped with `str(user_id)` |
 | `core/auth/jwt/jwt_handler.py` | `RefreshToken(token=..., created_on=..., revoked=...)` passed kwargs not in `__init__` | Aligned constructor call with `RefreshToken.__init__` signature |
 | `tests/__init__.py` | `setUp` created duplicate users if previous `tearDown` was interrupted | Added `RefreshToken` deletion and pre-insert cleanup in both `setUp` and `tearDown` |
+### US-018 — Environment-Aware Database Migrations
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-018-environment-aware-migrations` |
+| **PR** | [#14](https://github.com/mentally-gamez-soft/IAM-gateway/pull/14) |
+| **Status** | In Progress |
+| **Started** | 2026-02-20 |
+| **Trello** | [US-018](https://trello.com/c/1Hneaa4s) |
+
+#### Problem solved
+
+`migrations/env.py` previously relied exclusively on Flask's `current_app`
+context (provided by Flask-Migrate) to obtain the database URL.  This was
+fragile in CI/CD pipelines or bare `alembic` invocations where the application
+context is not available.
+
+#### Solution
+
+`migrations/env.py` was redesigned to resolve the database URL through a
+two-step fallback:
+
+1. **Flask application context (primary)** — unchanged behavior for all
+   `flask db` commands.
+2. **`APP_SETTINGS_MODULE` import (fallback)** — when no app context is active,
+   the environment variable `APP_SETTINGS_MODULE` is read, the corresponding
+   config module is imported, and `SQLALCHEMY_DATABASE_URI` is extracted from it.
+
+> The DB password is masked in all log output.  A `RuntimeError` with a clear
+> message is raised when neither path is available.
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-018-1 | `migrations/env.py` | Full redesign: removed module-level `current_app` dependency; added `_get_url_from_settings_module()`, `_try_flask_context()`, `get_database_url()`, `_get_metadata()`, `_process_revision_directives()`; both runners updated for dual-path resolution |
+| TASK-018-3 | `README.md` | Replaced single-line migration commands with a full "Running Database Migrations" section documenting per-environment commands and standalone `alembic` invocation |
+| TASK-018-4 | `DOCUMENTATION/PROJECT.md` | This changelog entry |
+| US-018 | `DOCUMENTATION/USER_STORIES/user_story_018.md` *(new)* | User story definition |
+| TASK-018-1–4 | `DOCUMENTATION/TASKS/task_018_{1,2,3,4}.md` *(new)* | Task definitions |

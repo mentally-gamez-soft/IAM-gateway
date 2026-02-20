@@ -172,5 +172,11 @@ requirements*.txt
 *.env
 
 migrations/*
+!migrations/env.py
+!migrations/alembic.ini
+!migrations/script.py.mako
+!migrations/README
+!migrations/versions/
+!migrations/versions/*.py
 
 .vscode
