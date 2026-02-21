@@ -39,7 +39,7 @@ def logout():
         Response: the response to the index page.
     """
     json = request.get_json()
-    jwt = json["data"]["jwt"]
+    jwt = json["data"].get("jwt") or json["data"].get("access_token")
     jwt_decoded = decode_jwt(jwt)
     user = GwUser.get_by_id(jwt_decoded[JWT_ENCODING_PARAM_1])
     user.jwt_session_id = None

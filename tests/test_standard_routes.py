@@ -67,7 +67,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
     @unittest.skipIf(
@@ -87,7 +87,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Request endpoint that requires authentication
@@ -120,7 +120,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Disconnect from the app.
@@ -150,7 +150,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Disconnect from the app.
@@ -190,7 +190,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
@@ -235,7 +235,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
@@ -277,7 +277,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
@@ -318,11 +318,11 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add the role "artist"
-        data["data"].pop("jwt", None)
+        data["data"].pop("access_token", None)
         data["data"]["role"] = role
         res = self.add_role(data)
         data = json.loads(res.data)
@@ -435,7 +435,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add role Artist to the user
@@ -489,7 +489,7 @@ class BlogClientTestCase(BaseTestClass):
         self.assertIn("X-CSRFToken", res.headers)
         self.assertIsNotNone(res.headers.get("X-CSRFToken"))
         self.assertIsNotNone(data["data"]["user"])
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIn("You are now logged in.", data.get("message"))
 
         # Add role Artist to the user
@@ -671,7 +671,7 @@ class BlogClientTestCase(BaseTestClass):
 
         self.assertEqual(200, res.status_code)
         self.assertIn("X-CSRFToken", res.headers)
-        self.assertIsNotNone(data["data"]["jwt"])
+        self.assertIsNotNone(data["data"]["access_token"])
         self.assertIsNotNone(data["data"]["user"])
         self.assertIn("You are now logged in.", data.get("message"))
 

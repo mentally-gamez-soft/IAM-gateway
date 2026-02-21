@@ -53,8 +53,10 @@ def authorization_guard(f, role=None):
 
         # Authentication gate
         try:
-            jwt = json["data"]["jwt"]
+            jwt = json["data"].get("jwt") or json["data"].get("access_token")
             user = json["data"]["user"]
+            if not jwt:
+                raise KeyError("No token provided")
         except Exception as e:
             return (
                 jsonify(

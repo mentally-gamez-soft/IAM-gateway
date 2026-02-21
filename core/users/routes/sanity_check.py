@@ -64,11 +64,13 @@ def protected():
             {
                 "data": {
                     "user": json["data"]["user"],
-                    "jwt": json["data"]["jwt"],
+                    "jwt": (
+                        json["data"].get("jwt")
+                        or json["data"].get("access_token")
+                    ),
                 },
-                "message": (
-                    "Welcome to {} service. (You're using the version {})"
-                    .format(API_TITLE, API_VERSION)
+                "message": "Welcome to {} service. (You're using the version {})".format(
+                    API_TITLE, API_VERSION
                 ),
                 "status": __RESPONSE_STATUS_200,
             }
@@ -99,11 +101,13 @@ def protected_with_role():
             {
                 "data": {
                     "user": json["data"]["user"],
-                    "jwt": json["data"]["jwt"],
+                    "jwt": (
+                        json["data"].get("jwt")
+                        or json["data"].get("access_token")
+                    ),
                 },
-                "message": (
-                    "Welcome to {} service. (You're using the version {})"
-                    .format(API_TITLE, API_VERSION)
+                "message": "Welcome to {} service. (You're using the version {})".format(
+                    API_TITLE, API_VERSION
                 ),
                 "status": __RESPONSE_STATUS_200,
             }
