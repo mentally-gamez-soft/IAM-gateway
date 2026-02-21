@@ -1334,7 +1334,7 @@ to whitelisted domains; local, dev, and testing environments allow `*`.
 | Field | Detail |
 |---|---|
 | **Branch** | `feature/US-011-user-profile-management` |
-| **PR** | TBD |
+| **PR** | [#17](https://github.com/mentally-gamez-soft/IAM-gateway/pull/17) |
 | **Status** | In Progress |
 | **Started** | 2026-02-21 |
 | **Trello** | [US-011](https://trello.com/c/HgKsACIf) |
