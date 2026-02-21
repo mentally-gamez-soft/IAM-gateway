@@ -10,6 +10,7 @@ from flask import request
 from config.default import (
     JWT_ACCESS_TOKEN_LIFETIME,
     JWT_ALG,
+    JWT_ENCODING_PARAM_1,
     JWT_REFRESH_TOKEN_LIFETIME,
     SECRET_KEY,
 )
@@ -141,7 +142,13 @@ def generate_token_pair(user_id: str, payload_data: dict) -> dict:
     from core.users.models import RefreshToken
 
     # Generate access token with short lifetime
-    access_payload = {"sub": str(user_id), **payload_data}
+    access_payload = {
+        "sub": str(user_id),
+        JWT_ENCODING_PARAM_1: str(
+            user_id
+        ),  # backward compat with downstream decoders
+        **payload_data,
+    }
     access_token = generate_jwt(
         payload=access_payload, lifetime=JWT_ACCESS_TOKEN_LIFETIME
     )

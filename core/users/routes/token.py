@@ -179,8 +179,8 @@ def refresh_token():
         # Generate new token pair with same family ID for tracking
         from datetime import datetime, timedelta
 
-        from application import db
         from config.default import JWT_REFRESH_TOKEN_LIFETIME
+        from core import db
         from core.auth.jwt.jwt_handler import (
             generate_jwt,
             generate_refresh_token,
@@ -193,14 +193,12 @@ def refresh_token():
 
         # Create new token record with same family ID
         new_token_record = RefreshToken(
-            token=new_refresh_token_hash,
             user_id=user.id,
-            family_id=refresh_token_record.family_id,  # Keep same family
-            created_on=datetime.utcnow(),
             expires_on=datetime.utcnow()
             + timedelta(minutes=JWT_REFRESH_TOKEN_LIFETIME),
-            revoked=False,
+            family_id=refresh_token_record.family_id,  # Keep same family
         )
+        new_token_record.token = new_refresh_token_hash
 
         db.session.add(new_token_record)
         db.session.commit()
