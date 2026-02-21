@@ -51,9 +51,11 @@ def authorization_guard(f, role=None):
     def decorated_function(*args, **kwargs):
         json = request.get_json()
 
-        # Authentication gate
+        # Authentication gate — accept both legacy "jwt" and new "access_token".
         try:
-            jwt = json["data"]["jwt"]
+            jwt = json["data"].get("jwt") or json["data"].get("access_token")
+            if not jwt:
+                raise KeyError("No token found in request data")
             user = json["data"]["user"]
         except Exception as e:
             return (

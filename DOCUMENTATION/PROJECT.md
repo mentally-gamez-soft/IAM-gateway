@@ -1326,3 +1326,110 @@ to whitelisted domains; local, dev, and testing environments allow `*`.
 | `CORS_METHODS` | `GET,POST,PUT,DELETE,OPTIONS` | inherited | inherited | inherited |
 | `CORS_SUPPORTS_CREDENTIALS` | `True` | inherited | inherited | inherited |
 | `CORS_MAX_AGE` | `600` s | inherited | inherited | inherited |
+
+---
+
+### US-011 — Add User Profile Viewing and Editing
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-011-user-profile-management` |
+| **PR** | TBD |
+| **Status** | In Progress |
+| **Started** | 2026-02-21 |
+| **Trello** | [US-011](https://trello.com/c/HgKsACIf) |
+
+#### Problem solved
+
+Authenticated users had no way to view or update their own profile information beyond the basic account fields set at signup. The API lacked dedicated endpoints for profile self-service.
+
+#### Solution
+
+Extended the `GwUser` model with six new profile fields and created a new `core/users/routes/profile.py` module exposing `GET /profile` and `PUT /profile` endpoints. Both endpoints require authentication via `authorization_guard` and `login_required`. Protected fields (`email`, `username`, `password`, `roles`) cannot be changed through the profile endpoint. The `authorization_guard` was updated to accept both the legacy `jwt` key and the newer `access_token` key in the request payload.
+
+#### New model fields (GwUser)
+
+| Column | Type | Nullable | Default | Description |
+|---|---|---|---|---|
+| `display_name` | `String(80)` | Yes | `NULL` | Optional display name |
+| `avatar_url` | `String(255)` | Yes | `NULL` | URL to user avatar image |
+| `bio` | `Text` | Yes | `NULL` | Free-form biography |
+| `language_preference` | `String(5)` | No | `"en"` | Locale preference (e.g. `fr`, `en-US`) |
+| `timezone` | `String(50)` | No | `"UTC"` | IANA timezone name |
+| `profile_updated_at` | `DateTime` | Yes | `NULL` | Timestamp of last profile update |
+
+#### API endpoints
+
+| Method | Path | Auth required | Description |
+|---|---|---|---|
+| `GET` | `/profile` | `authorization_guard` + `login_required` | Returns the authenticated user's full profile |
+| `PUT` | `/profile` | `authorization_guard` + `login_required` | Updates mutable profile fields |
+
+**GET /profile** — request payload:
+```json
+{
+  "data": {
+    "access_token": "<JWT>",
+    "user": "<base64-user-id>"
+  }
+}
+```
+
+**PUT /profile** — request payload:
+```json
+{
+  "data": {
+    "access_token": "<JWT>",
+    "user": "<base64-user-id>",
+    "profile": {
+      "display_name": "Alice Smith",
+      "avatar_url": "https://example.com/avatar.png",
+      "bio": "Software engineer.",
+      "language_preference": "en",
+      "timezone": "Europe/Paris"
+    }
+  }
+}
+```
+
+#### curl examples
+
+```bash
+# GET /profile
+curl -s -X GET http://localhost:5000/profile \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"access_token":"<JWT>","user":"<base64-user-id>"}}'
+
+# PUT /profile
+curl -s -X PUT http://localhost:5000/profile \
+  -H "Content-Type: application/json" \
+  -H "X-CSRFToken: <csrf>" \
+  -d '{
+    "data": {
+      "access_token": "<JWT>",
+      "user": "<base64-user-id>",
+      "profile": {
+        "display_name": "My Name",
+        "language_preference": "fr",
+        "timezone": "Europe/Paris"
+      }
+    }
+  }'
+```
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-011-1 | `core/users/models.py` | Added 6 profile columns, `to_profile_dict()`, `update_profile()` methods |
+| TASK-011-1 | `migrations/versions/0f282d3d2219_add_profile_fields_to_gw_user_us_011.py` *(new)* | Alembic migration with `server_default` for non-nullable columns |
+| TASK-011-2 | `core/users/routes/profile.py` *(new)* | `GET /profile` endpoint |
+| TASK-011-3 | `core/users/routes/profile.py` | `PUT /profile` endpoint with field validation |
+| TASK-011-2/3 | `core/users/routes/__init__.py` | Registered `profile` module import |
+| TASK-011-2/3 | `core/users/forms.py` | Added `ProfileUpdateForm` |
+| TASK-011-2/3 | `core/common/messages.py` | Added 6 profile-specific message constants |
+| TASK-011-2/3 | `core/auth/auth_guard.py` | `authorization_guard` now accepts both `jwt` and `access_token` keys |
+| TASK-011-2/3 | `core/auth/payload_validator.py` | `validate_generic_payload` accepts both `jwt` and `access_token` keys |
+| TASK-011-4 | `static/swagger-docs/swagger.json` | Added `GET /profile` and `PUT /profile` entries with full request/response schemas |
+| TASK-011-5 | `tests/test_profile.py` *(new)* | 18 tests covering authentication enforcement, happy-path reads/writes, field validation, and protected-field rejection |
+

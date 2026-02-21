@@ -79,6 +79,48 @@ A set of tools is provided to help you to create, run and stop the docker contai
     Response: {"status": "ok", "timestamp": "<ISO 8601>", "version": "<APP_VERSION>"}
     Use as Docker/Kubernetes liveness probe target.
 
+### User Profile Management (US-011)
+
+    GET /profile — returns the authenticated user's profile data
+    PUT /profile — updates mutable profile fields for the authenticated user
+
+Both endpoints require authentication (`authorization_guard`, `login_required`).
+The request body must include `access_token` (or legacy `jwt`) and `user` inside a `data` object.
+
+#### Profile fields
+
+| Field | Type | Updatable via PUT | Description |
+|---|---|---|---|
+| `id` | UUID | No | User identifier |
+| `username` | String | No | Login username (immutable via this endpoint) |
+| `email` | String | No | Login email (immutable via this endpoint) |
+| `display_name` | String ≤80 | **Yes** | Optional public display name |
+| `avatar_url` | String ≤255 | **Yes** | URL to avatar image |
+| `bio` | Text | **Yes** | Free-form biography |
+| `language_preference` | String 2-5 | **Yes** | Locale code (e.g. `en`, `fr`) |
+| `timezone` | String ≤50 | **Yes** | IANA timezone (e.g. `UTC`, `Europe/Paris`) |
+| `profile_updated_at` | DateTime | Auto | Set automatically on each PUT |
+
+#### curl examples
+
+```bash
+# GET profile
+curl -s -X GET http://localhost:5000/profile \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"access_token":"<JWT>","user":"<base64-user-id>"}}'
+
+# PUT profile
+curl -s -X PUT http://localhost:5000/profile \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data":{
+      "access_token":"<JWT>",
+      "user":"<base64-user-id>",
+      "profile":{"display_name":"Alice","language_preference":"fr","timezone":"Europe/Paris"}
+    }
+  }'
+```
+
 ### Readiness Probe (US-005)
     GET /ready — returns 200 when all critical dependencies are reachable; 503 otherwise
     Checks performed:

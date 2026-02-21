@@ -27,3 +27,16 @@ __GENERIC_ERROR = "Something went wrong."
 __ACCOUNT_ACTIVATED = "Your account has been activated."
 __ACCOUNT_ALREADY_ACTIVATED = "Your account is already active."
 __PAYLOAD_INVALID = "The provided data input is invalid!"
+__PROFILE_GET_SUCCESSFUL = "Profile retrieved successfully."
+__PROFILE_UPDATE_SUCCESSFUL = "Profile updated successfully."
+__PROFILE_FIELD_PROTECTED = (
+    "Protected field(s) cannot be updated via this endpoint."
+)
+__PROFILE_LANGUAGE_INVALID = "Invalid language_preference value. Expected a 2-5 character locale code (e.g. 'en', 'fr')."
+__PROFILE_TIMEZONE_INVALID = (
+    "Invalid timezone value. Must be 50 characters or fewer."
+)
+__PROFILE_DISPLAY_NAME_TOO_LONG = (
+    "display_name must be 80 characters or fewer."
+)
+__PROFILE_AVATAR_URL_TOO_LONG = "avatar_url must be 255 characters or fewer."

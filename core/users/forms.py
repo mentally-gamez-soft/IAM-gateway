@@ -6,8 +6,9 @@ from wtforms import (
     EmailField,
     PasswordField,
     StringField,
+    TextAreaField,
 )
-from wtforms.validators import DataRequired, Email, Length
+from wtforms.validators import DataRequired, Email, Length, Optional
 
 
 class LoginForm(FlaskForm):
@@ -50,4 +51,34 @@ class SignupForm(FlaskForm):
             DataRequired(),
             Length(max=64),
         ],
+    )
+
+
+class ProfileUpdateForm(FlaskForm):
+    """Form for updating the authenticated user's profile (US-011).
+
+    All fields are optional — only supplied fields are updated.
+    Protected fields (email, username, password, roles) are intentionally
+    excluded from this form.
+    """
+
+    display_name = StringField(
+        "Display Name",
+        validators=[Optional(), Length(max=80)],
+    )
+    avatar_url = StringField(
+        "Avatar URL",
+        validators=[Optional(), Length(max=255)],
+    )
+    bio = TextAreaField(
+        "Bio",
+        validators=[Optional()],
+    )
+    language_preference = StringField(
+        "Language Preference",
+        validators=[Optional(), Length(min=2, max=5)],
+    )
+    timezone = StringField(
+        "Timezone",
+        validators=[Optional(), Length(max=50)],
     )

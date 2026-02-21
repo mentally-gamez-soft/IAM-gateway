@@ -82,6 +82,14 @@ class GwUser(db.Model, UserMixin):
     )
     is_admin = db.Column(db.Boolean, default=False)
 
+    # Profile fields (US-011)
+    display_name = db.Column(db.String(80), nullable=True)
+    avatar_url = db.Column(db.String(255), nullable=True)
+    bio = db.Column(db.Text, nullable=True)
+    language_preference = db.Column(db.String(5), nullable=False, default="en")
+    timezone = db.Column(db.String(50), nullable=False, default="UTC")
+    profile_updated_at = db.Column(db.DateTime, nullable=True)
+
     def __init__(self, username, email):
         """Declare constructor for User.
 
@@ -140,6 +148,59 @@ class GwUser(db.Model, UserMixin):
             str: An instance of a user.
         """
         return f"<User {self.email}>"
+
+    def to_profile_dict(self) -> dict:
+        """Serialize the user's profile to a JSON-safe dictionary.
+
+        Returns:
+            dict: A dictionary with all profile fields for US-011.
+        """
+        return {
+            "id": str(self.id),
+            "username": self.username,
+            "email": self.email,
+            "display_name": self.display_name,
+            "avatar_url": self.avatar_url,
+            "bio": self.bio,
+            "language_preference": self.language_preference or "en",
+            "timezone": self.timezone or "UTC",
+            "is_admin": self.is_admin,
+            "active": self.active,
+            "created_on": (
+                self.created_on.isoformat() if self.created_on else None
+            ),
+            "activated_on": (
+                self.activated_on.isoformat() if self.activated_on else None
+            ),
+            "profile_updated_at": (
+                self.profile_updated_at.isoformat()
+                if self.profile_updated_at
+                else None
+            ),
+            "roles": [r.role for r in self.roles],
+        }
+
+    def update_profile(self, data: dict) -> None:
+        """Update mutable profile fields on the user (US-011).
+
+        Protected fields (email, username, password, roles) are silently
+        ignored even if present in *data*.
+
+        Args:
+            data (dict): Key/value pairs of fields to update.
+        """
+        allowed = {
+            "display_name",
+            "avatar_url",
+            "bio",
+            "language_preference",
+            "timezone",
+        }
+        for field, value in data.items():
+            if field in allowed:
+                setattr(self, field, value)
+        self.profile_updated_at = arrow.utcnow().datetime
+        self.save()
 
     @staticmethod
     def get_by_id(id) -> "GwUser":
