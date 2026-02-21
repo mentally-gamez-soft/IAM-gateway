@@ -89,6 +89,38 @@ A set of tools is provided to help you to create, run and stop the docker contai
     Both endpoints bypass authentication and CSRF protection.
     Docker HEALTHCHECK is configured in Dockerfile and both compose files using wget --spider http://localhost:5000/health
 
+### GDPR Compliance Endpoints (US-012)
+
+All endpoints require a valid JWT in the request body (`data.access_token` + `data.user`).
+
+#### Export Personal Data
+    POST /user/data
+    Returns a full JSON snapshot of all personal data held for the authenticated user.
+    Response 200: {"data": {"account": {...}, "roles": [...], "consents": [...], "export_metadata": {...}}}
+    Response 401: invalid or expired token
+
+#### Delete Account (Soft Delete + Anonymize)
+    DELETE /user/account
+    Body: {"data": {"user": <b64>, "access_token": <jwt>, "confirm": true, "password": "<current password>"}}
+    Soft-deletes and anonymizes the user account. All refresh tokens are revoked.
+    Response 200: account deleted successfully
+    Response 400: confirm not set to true
+    Response 401: incorrect password
+    Response 409: account already deleted
+
+    Anonymization: email → deleted_{uuid}@deleted.invalid, username → deleted_{uuid[:8]}
+
+#### Retrieve Consent Preferences
+    POST /user/consent
+    Returns the current GDPR consent status and per-type consent records.
+    Response 200: {"data": {"consent_given": bool, "consent_at": "<ISO8601>", "consents": [...]}}
+
+#### Update Consent Preferences
+    PUT /user/consent
+    Body: {"data": {"user": <b64>, "access_token": <jwt>, "consent_given": true|false, "consents": [{"consent_type": "marketing", "granted": true}, ...]}}
+    Response 200: updated consent_given + consent_at
+    Response 400: missing consent_given field
+
 ## Structured JSON Logging (US-004)
 
 

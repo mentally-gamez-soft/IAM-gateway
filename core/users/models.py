@@ -73,6 +73,9 @@ class GwUser(db.Model, UserMixin):
     deactivated_on = db.Column(db.DateTime, nullable=True)
     jwt_session_id = db.Column(db.String(500), nullable=True)
     deleted = db.Column(db.Boolean, nullable=False, default=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    consent_given = db.Column(db.Boolean, nullable=True, default=None)
+    consent_at = db.Column(db.DateTime, nullable=True)
     roles: Mapped[List["GwUserRole"]] = db.relationship(
         "GwUserRole",
         backref="gwuser",
@@ -181,15 +184,93 @@ class GwUser(db.Model, UserMixin):
         """Mark a user as deleted."""
         self.deleted = True
         self.deactivated_on = arrow.utcnow().datetime
+        self.deleted_at = arrow.utcnow().datetime
+        get_session_with_schema().commit()
+
+    def soft_delete_and_anonymize(self):
+        """Soft-delete the user and anonymize all PII fields.
+
+        Sets the deleted flag, records deletion timestamp, revokes all sessions,
+        and anonymizes username and email to comply with GDPR right to erasure.
+        """
+        uid = str(self.id)
+        self.deleted = True
+        self.deleted_at = arrow.utcnow().datetime
+        self.deactivated_on = self.deleted_at
+        self.active = False
+        self.jwt_session_id = None
+        self.email = f"deleted_{uid}@deleted.invalid"
+        self.username = f"deleted_{uid[:8]}"
+        get_session_with_schema().commit()
+
+    def export_data(self) -> dict:
+        """Export all user personal data as a structured dictionary.
+
+        Returns:
+            dict: All user-owned data for GDPR Article 20 portability.
+        """
+        return {
+            "account": {
+                "id": str(self.id),
+                "username": self.username,
+                "email": self.email,
+                "created_on": (
+                    self.created_on.isoformat() if self.created_on else None
+                ),
+                "activated_on": (
+                    self.activated_on.isoformat()
+                    if self.activated_on
+                    else None
+                ),
+                "is_active": self.active,
+                "is_admin": self.is_admin,
+                "consent_given": self.consent_given,
+                "consent_at": (
+                    self.consent_at.isoformat() if self.consent_at else None
+                ),
+            },
+            "roles": [role.role for role in self.roles],
+            "consents": [
+                {
+                    "consent_type": c.consent_type,
+                    "granted": c.granted,
+                    "granted_at": (
+                        c.granted_at.isoformat() if c.granted_at else None
+                    ),
+                    "revoked_at": (
+                        c.revoked_at.isoformat() if c.revoked_at else None
+                    ),
+                    "ip_address": c.ip_address,
+                }
+                for c in UserConsent.get_all_for_user(self.id)
+            ],
+            "export_metadata": {
+                "export_date": arrow.utcnow().isoformat(),
+                "format_version": "1.0",
+            },
+        }
+
+    def update_consent(self, consent_given: bool, ip_address: str = None):
+        """Update the user-level GDPR consent.
+
+        Args:
+            consent_given (bool): Whether the user has given consent.
+            ip_address (str, optional): The IP address of the requester.
+        """
+        self.consent_given = consent_given
+        self.consent_at = arrow.utcnow().datetime
         get_session_with_schema().commit()
 
     def is_active(self) -> bool:
         """Check if a user is active.
 
+        A user is considered active only when their ``active`` flag is True
+        **and** their account has not been soft-deleted.
+
         Returns:
-            bool: True if the user is active, False otherwise.
+            bool: True if the user is active and not deleted, False otherwise.
         """
-        return self.active
+        return self.active and not self.deleted
 
     @staticmethod
     def activate_by_id(id) -> "GwUser":
@@ -431,3 +512,115 @@ class StatsApiEndpoints(db.Model):
         if not self.id:
             get_session_with_schema().add(self)
         get_session_with_schema().commit()
+
+
+class UserConsent(db.Model):
+    """Declare the model for per-type GDPR consent records."""
+
+    __table_args__ = {
+        "comment": "Tracks GDPR consent entries per user per consent type.",
+    }
+    __tablename__ = "user_consent"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        UUID(as_uuid=True), db.ForeignKey("gw_user.id"), nullable=False
+    )
+    consent_type = db.Column(db.String(50), nullable=False)
+    granted = db.Column(db.Boolean, nullable=False, default=False)
+    granted_at = db.Column(db.DateTime, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+
+    user = db.relationship(
+        "GwUser",
+        backref=db.backref(
+            "consents", cascade="all, delete-orphan", lazy=True
+        ),
+    )
+
+    def __init__(
+        self,
+        user_id: UUID,
+        consent_type: str,
+        granted: bool,
+        ip_address: str = None,
+    ):
+        """Initialize a consent record.
+
+        Args:
+            user_id (UUID): The ID of the user.
+            consent_type (str): The type of consent (e.g. 'marketing', 'analytics').
+            granted (bool): Whether the consent was granted.
+            ip_address (str, optional): Requester IP address for audit trail.
+        """
+        self.user_id = user_id
+        self.consent_type = consent_type
+        self.granted = granted
+        self.ip_address = ip_address
+        self.granted_at = arrow.utcnow().datetime if granted else None
+
+    def revoke(self):
+        """Mark this consent as revoked."""
+        self.granted = False
+        self.revoked_at = arrow.utcnow().datetime
+        get_session_with_schema().commit()
+
+    def save(self):
+        """Save this consent record to the database."""
+        if not self.id:
+            get_session_with_schema().add(self)
+        get_session_with_schema().commit()
+
+    @staticmethod
+    def get_all_for_user(user_id: UUID) -> list:
+        """Return all consent records for a given user.
+
+        Args:
+            user_id (UUID): The user's ID.
+
+        Returns:
+            list: All UserConsent instances for this user.
+        """
+        return UserConsent.query.filter_by(user_id=user_id).all()
+
+    @staticmethod
+    def upsert(
+        user_id: UUID, consent_type: str, granted: bool, ip_address: str = None
+    ) -> "UserConsent":
+        """Create or update a consent record for a given (user, consent_type) pair.
+
+        Args:
+            user_id (UUID): The user's ID.
+            consent_type (str): The type of consent.
+            granted (bool): Whether consent is granted.
+            ip_address (str, optional): Requester IP address.
+
+        Returns:
+            UserConsent: The created or updated consent record.
+        """
+        existing = UserConsent.query.filter_by(
+            user_id=user_id, consent_type=consent_type
+        ).first()
+        if existing:
+            if granted:
+                existing.granted = True
+                existing.granted_at = arrow.utcnow().datetime
+                existing.revoked_at = None
+            else:
+                existing.revoke()
+            existing.ip_address = ip_address
+            get_session_with_schema().commit()
+            return existing
+        record = UserConsent(
+            user_id=user_id,
+            consent_type=consent_type,
+            granted=granted,
+            ip_address=ip_address,
+        )
+        record.save()
+        return record
+
+    def __repr__(self):
+        """Return string representation."""
+        return f"<UserConsent user_id={self.user_id} type={self.consent_type} granted={self.granted}>"

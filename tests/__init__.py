@@ -8,6 +8,7 @@ from core.users.models import (
     GwUserRole,
     RefreshToken,
     StatsApiEndpoints,
+    UserConsent,
 )
 
 
@@ -25,6 +26,7 @@ class BaseTestClass(unittest.TestCase):
 
             # Clean up any leftover data from previous runs before inserting
             db.session.query(RefreshToken).delete()
+            db.session.query(UserConsent).delete()
             db.session.query(GwUserRole).delete()
             db.session.query(GwUser).delete()
             db.session.query(StatsApiEndpoints).delete()
@@ -43,6 +45,7 @@ class BaseTestClass(unittest.TestCase):
         with self.app.app_context():
             # Delete all the data from the DB (order matters: FK constraints)
             db.session.query(RefreshToken).delete()
+            db.session.query(UserConsent).delete()
             db.session.query(GwUserRole).delete()
             db.session.query(GwUser).delete()
             db.session.query(StatsApiEndpoints).delete()

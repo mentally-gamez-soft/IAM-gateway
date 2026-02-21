@@ -6,6 +6,14 @@
       "version": "1.0.0a"
     },
     "basePath": "/Service-Name/api/v1.0.0a",
+    "securityDefinitions": {
+      "BearerAuth": {
+        "type": "apiKey",
+        "name": "Authorization",
+        "in": "header",
+        "description": "JWT Bearer token. Example: Bearer <token>"
+      }
+    },
     "paths": {
       "/": {
           "get": {
@@ -69,6 +77,269 @@
             }
           }
         }
-      }       
+      },
+      "/user/data": {
+        "post": {
+          "summary": "Export all personal data (GDPR Article 20)",
+          "description": "Returns a complete JSON export of all personal data stored for the authenticated user. Authentication is provided via the request body payload.",
+          "tags": ["GDPR"],
+          "consumes": ["application/json"],
+          "produces": ["application/json"],
+          "parameters": [
+            {
+              "name": "body",
+              "in": "body",
+              "required": true,
+              "schema": {
+                "$ref": "#/definitions/AuthPayload"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Personal data exported successfully.",
+              "schema": {
+                "$ref": "#/definitions/DataExportResponse"
+              }
+            },
+            "401": {
+              "description": "Unauthenticated or invalid token.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            },
+            "403": {
+              "description": "Account is soft-deleted.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            }
+          }
+        }
+      },
+      "/user/account": {
+        "delete": {
+          "summary": "Delete account (GDPR right to erasure)",
+          "description": "Soft-deletes and anonymizes the authenticated user account. Requires confirmation flag and current password.",
+          "tags": ["GDPR"],
+          "consumes": ["application/json"],
+          "produces": ["application/json"],
+          "parameters": [
+            {
+              "name": "body",
+              "in": "body",
+              "required": true,
+              "schema": {
+                "$ref": "#/definitions/DeleteAccountPayload"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Account deleted and anonymized successfully.",
+              "schema": { "$ref": "#/definitions/SuccessResponse" }
+            },
+            "400": {
+              "description": "Missing confirmation flag.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            },
+            "401": {
+              "description": "Invalid password or unauthenticated.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            },
+            "409": {
+              "description": "Account already deleted.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            }
+          }
+        }
+      },
+      "/user/consent": {
+        "post": {
+          "summary": "Get current GDPR consent status",
+          "description": "Returns all current GDPR consent preferences for the authenticated user.",
+          "tags": ["GDPR"],
+          "consumes": ["application/json"],
+          "produces": ["application/json"],
+          "parameters": [
+            {
+              "name": "body",
+              "in": "body",
+              "required": true,
+              "schema": { "$ref": "#/definitions/AuthPayload" }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Consent preferences retrieved successfully.",
+              "schema": { "$ref": "#/definitions/ConsentResponse" }
+            },
+            "401": {
+              "description": "Unauthenticated or invalid token.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            }
+          }
+        },
+        "put": {
+          "summary": "Update GDPR consent preferences",
+          "description": "Updates the authenticated user's GDPR consent preferences. Supports both a top-level consent_given flag and per-type consent entries.",
+          "tags": ["GDPR"],
+          "consumes": ["application/json"],
+          "produces": ["application/json"],
+          "parameters": [
+            {
+              "name": "body",
+              "in": "body",
+              "required": true,
+              "schema": { "$ref": "#/definitions/UpdateConsentPayload" }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Consent preferences updated successfully.",
+              "schema": { "$ref": "#/definitions/ConsentUpdateResponse" }
+            },
+            "400": {
+              "description": "Missing required field consent_given.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            },
+            "401": {
+              "description": "Unauthenticated or invalid token.",
+              "schema": { "$ref": "#/definitions/ErrorResponse" }
+            }
+          }
+        }
+      }
+    },
+    "definitions": {
+      "AuthPayload": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["user", "access_token"],
+            "properties": {
+              "user": { "type": "string", "description": "Base64-encoded user ID" },
+              "access_token": { "type": "string", "description": "JWT access token" }
+            }
+          }
+        }
+      },
+      "DeleteAccountPayload": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["user", "access_token", "confirm", "password"],
+            "properties": {
+              "user": { "type": "string", "description": "Base64-encoded user ID" },
+              "access_token": { "type": "string", "description": "JWT access token" },
+              "confirm": { "type": "boolean", "description": "Must be true to confirm deletion" },
+              "password": { "type": "string", "description": "Current account password" }
+            }
+          }
+        }
+      },
+      "UpdateConsentPayload": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["user", "access_token", "consent_given"],
+            "properties": {
+              "user": { "type": "string" },
+              "access_token": { "type": "string" },
+              "consent_given": { "type": "boolean" },
+              "consents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "consent_type": { "type": "string", "example": "marketing" },
+                    "granted": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DataExportResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer", "example": 200 },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "account": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "username": { "type": "string" },
+                  "email": { "type": "string" },
+                  "created_on": { "type": "string", "format": "date-time" },
+                  "activated_on": { "type": "string", "format": "date-time" },
+                  "is_active": { "type": "boolean" },
+                  "is_admin": { "type": "boolean" },
+                  "consent_given": { "type": "boolean" },
+                  "consent_at": { "type": "string", "format": "date-time" }
+                }
+              },
+              "roles": { "type": "array", "items": { "type": "string" } },
+              "consents": { "type": "array", "items": { "type": "object" } },
+              "export_metadata": {
+                "type": "object",
+                "properties": {
+                  "export_date": { "type": "string", "format": "date-time" },
+                  "format_version": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ConsentResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "consent_given": { "type": "boolean" },
+              "consent_at": { "type": "string", "format": "date-time" },
+              "consents": { "type": "array", "items": { "type": "object" } }
+            }
+          }
+        }
+      },
+      "ConsentUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "consent_given": { "type": "boolean" },
+              "consent_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer" },
+          "message": { "type": "string" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer" },
+          "message": { "type": "string" }
+        }
+      }
     }
   }

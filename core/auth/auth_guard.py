@@ -17,6 +17,7 @@ from core.common.messages import (
     __ACCESS_DENIED,
     __ACTIVATION_REQUIRED,
     __AUTH_REQUIRED,
+    __DELETED_USER_ACCESS_DENIED,
 )
 from core.users.models import GwUser
 
@@ -78,6 +79,24 @@ def authorization_guard(f, role=None):
                 jsonify(
                     {
                         "message": __ACCESS_DENIED,
+                        "status": __RESPONSE_STATUS_401,
+                    }
+                ),
+                __RESPONSE_STATUS_401,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
+            )
+
+        # Block soft-deleted users
+        gw_user = GwUser.get_by_id(decode_as_base64(user))
+        if gw_user.deleted:
+            return (
+                jsonify(
+                    {
+                        "message": __DELETED_USER_ACCESS_DENIED,
                         "status": __RESPONSE_STATUS_401,
                     }
                 ),

@@ -80,6 +80,7 @@ def login():
         user = GwUser.get_by_email(form.email.data)
         if (
             user is not None
+            and not user.deleted
             and user.check_password(form.password.data)
             and user.is_active()
         ):

@@ -1018,9 +1018,42 @@ gitgraph
 | Field | Value |
 |---|---|
 | **Title** | Implement User Account Soft Delete and Data Export |
-| **Description** | As a **user**, I want to be able to delete my account and export my data, so that my rights under GDPR/data protection regulations are respected. A `DELETE /account` endpoint should soft-delete the user (already partially supported via `deleted` flag and `deactivated_on`). A `GET /account/export` endpoint should return all user data in JSON format. A scheduled job should permanently purge soft-deleted accounts after a retention period (e.g., 30 days). |
+| **Description** | As a **user**, I want to be able to delete my account and export my data, so that my rights under GDPR/data protection regulations are respected. |
 | **Priority** | **Medium** |
 | **Estimated Cost** | **5 Story Points** (~2.5 days) |
+| **Status** | ✅ **Implemented** — `feature/US-012-gdpr-account-deletion` |
+
+#### Implemented Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/user/data` | Export all personal data (GDPR Article 20). Returns account info, roles, consents, metadata. Requires auth. |
+| `DELETE` | `/user/account` | Soft-delete and anonymize the account (GDPR right to erasure). Requires `confirm: true` + current `password`. |
+| `POST` | `/user/consent` | Retrieve current GDPR consent preferences. |
+| `PUT` | `/user/consent` | Update GDPR consent preferences. Accepts per-type consent entries. |
+
+#### Database Changes
+
+New columns on `gw_user`:
+- `deleted_at` (`DateTime`, nullable) — GDPR audit timestamp of when the account was deleted.
+- `consent_given` (`Boolean`, nullable) — top-level consent flag.
+- `consent_at` (`DateTime`, nullable) — timestamp of the last consent change.
+
+New table `user_consent`:
+- Tracks per-type GDPR consent (e.g., `marketing`, `analytics`) per user.
+- Supports grant/revoke lifecycle with `granted_at`/`revoked_at` audit fields.
+- Cascade-deletes when the parent user is removed.
+
+#### Security Behaviour
+
+- Deleted users are blocked at three layers: **login**, **`authorization_guard` decorator**, and **`user_loader`**.
+- `GwUser.is_active()` now also checks `not self.deleted`, so deleted users are never considered active.
+- On deletion, the `email` is anonymized to `deleted_{uuid}@deleted.invalid` and `username` to `deleted_{uuid[:8]}`, preventing re-registration with old credentials.
+- All refresh tokens are revoked atomically before deletion.
+
+#### Migration
+
+Alembic migration `838d0e2f34567_add_gdpr_fields.py` — upgrades from `837c9d1f23456`.
 
 ---
 
