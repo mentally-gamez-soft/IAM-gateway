@@ -34,3 +34,8 @@ RATE_LIMIT_LOGIN = "1000/minute"
 RATE_LIMIT_SIGNUP = "1000/minute"
 RATELIMIT_STORAGE_URI = "memory://"
 RATELIMIT_HEADERS_ENABLED = True
+
+# Celery — run tasks eagerly (synchronous) during tests, no broker required
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
+USE_ASYNC_EMAIL = False
