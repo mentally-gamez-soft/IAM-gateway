@@ -3,7 +3,7 @@
 import logging
 from os import environ as env
 
-from flask import current_app, jsonify, request
+from flask import current_app, jsonify, request, url_for
 from flask_login import current_user, login_user
 from flask_wtf.csrf import generate_csrf
 
@@ -215,7 +215,56 @@ def signup():
             )
             user.last_activation_token = activation_token
 
-            # TODO: send the email to user for account activation.
+            # Dispatch account-activation email asynchronously when enabled.
+            if current_app.config.get("USE_ASYNC_EMAIL", True):
+                try:
+                    from core.tasks.email_tasks import send_email_task
+
+                    activation_url = url_for(
+                        "users.confirm_email",
+                        token=activation_token,
+                        _external=True,
+                    )
+                    html_body = (
+                        "<html><body style='font-family:Arial,sans-serif;"
+                        "line-height:1.6;color:#333;'>"
+                        "<div style='max-width:600px;margin:0 auto;padding:"
+                        "20px;border:1px solid #ddd;border-radius:5px;'>"
+                        f"<h2>Welcome, {user.username}!</h2>"
+                        "<p>Thank you for creating an account. Please click "
+                        "the button below to activate it.</p>"
+                        "<p style='text-align:center;margin:30px 0;'>"
+                        f"<a href='{activation_url}' style='background-color:"
+                        "#3498db;color:white;padding:12px 30px;text-decoration"
+                        ":none;border-radius:5px;display:inline-block;'>"
+                        "Activate Account</a></p>"
+                        "<p>Or copy this link:</p>"
+                        f"<p style='background-color:#f4f4f4;padding:10px;"
+                        "border-radius:3px;word-break:break-all;'>"
+                        f"{activation_url}</p>"
+                        "<p style='color:#7f8c8d;font-size:12px;'>"
+                        "Best regards,<br>The IAM Gateway Team</p>"
+                        "</div></body></html>"
+                    )
+                    text_body = (
+                        f"Welcome, {user.username}!\n\n"
+                        "Please activate your account by visiting:\n"
+                        f"{activation_url}\n\n"
+                        "Best regards,\nThe IAM Gateway Team"
+                    )
+                    send_email_task.delay(
+                        to=user.email,
+                        subject="Activate your IAM Gateway account",
+                        body=text_body,
+                        html_body=html_body,
+                    )
+                    logger.info("Activation email queued for %s", user.email)
+                except Exception as exc:
+                    logger.error(
+                        "Failed to queue activation email for %s: %s",
+                        user.email,
+                        str(exc),
+                    )
 
             jwt_token = initiate_session_jwt(
                 payload={
