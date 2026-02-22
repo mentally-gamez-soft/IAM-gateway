@@ -802,9 +802,26 @@ flowchart TD
 - **Gitleaks** — Scan for secrets committed into the repository (API keys, passwords, tokens)
 
 #### Stage 3 — Unit & Integration Tests
-- Run the test suite: `uv run -m unittest tests.test_standard_routes`
-- Generate code coverage reports (recommend `pytest-cov`)
+- Run the full test suite: `uv run -m unittest discover -s tests -t .`
+- Measure code coverage using the `coverage` library (see [Test Coverage](#test-coverage) below)
 - Set a minimum coverage threshold (e.g., 80%)
+
+#### Test Coverage
+
+Code coverage is measured with the [`coverage`](https://coverage.readthedocs.io/)
+library. The configuration is stored in `.coveragerc` at the project root and
+enables **branch coverage** for the `core`, `config`, and `server` packages.
+
+| Command | Description |
+|---|---|
+| `uv run coverage run -m unittest discover -s tests -t .` | Run full test suite and collect coverage data |
+| `uv run coverage report` | Print per-file coverage table (with missing lines) to the terminal |
+| `uv run coverage html` | Generate interactive HTML report in `htmlcov/` |
+| `uv run coverage xml` | Generate `coverage.xml` for CI tools (e.g., SonarQube, Codecov) |
+
+The `htmlcov/` directory and the `.coverage` data file are excluded from
+version control via `.gitignore`. The current baseline coverage is **46%**
+(statement + branch); the target is **80%** as more unit tests are added.
 
 #### Stage 4 — Dependency Vulnerability Scanning
 - **pip-audit** or **Safety** — Scan `requirements.txt` / `pyproject.toml` dependencies for known CVEs
