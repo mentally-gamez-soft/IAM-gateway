@@ -6,7 +6,6 @@ from logging.config import fileConfig
 from urllib.parse import urlparse
 
 from alembic import context
-from sqlalchemy import text
 
 # ---------------------------------------------------------------------------
 # Alembic config object — provides access to values in alembic.ini
@@ -218,76 +217,61 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _build_engine_with_schema(url, schema: str | None):
+    """Return a NullPool engine with search_path wired in at the DBAPI level.
+
+    Setting search_path via ``connect_args`` happens in the PostgreSQL startup
+    packet — before any SQLAlchemy transaction starts.  This is the only
+    reliable approach in SQLAlchemy 2.x: issuing ``SET search_path`` inside
+    a connection.execute() auto-begins a transaction, and in PostgreSQL ``SET``
+    is transaction-scoped, so it gets rolled back when that transaction closes.
+    """
+    from sqlalchemy import create_engine, pool  # noqa: PLC0415
+
+    kwargs: dict = {"poolclass": pool.NullPool}
+    if schema:
+        kwargs["connect_args"] = {"options": f"-c search_path={schema},public"}
+        logger.info("Migration engine search_path: %s, public", schema)
+    return create_engine(url, **kwargs)
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
     Creates an Engine and associates a connection with the context.
     When a Flask application context is active the existing Flask-Migrate
-    engine is reused; otherwise a fresh engine is built from the URL
-    resolved via APP_SETTINGS_MODULE.
+    engine is reused (URL only); otherwise a fresh engine is built from the
+    URL resolved via APP_SETTINGS_MODULE.
+
+    In both cases a fresh NullPool engine is created with ``search_path`` set
+    at DBAPI connection time so schema routing is reliable.
     """
     engine, url, _, conf_args = _try_flask_context()
 
-    if engine is not None:
-        # ── Flask context path (normal `flask db` usage) ─────────────────
-        if conf_args is None:
-            conf_args = {}
-        if conf_args.get("process_revision_directives") is None:
-            conf_args["process_revision_directives"] = (
-                _process_revision_directives
-            )
+    if url is None:
+        url = _get_url_from_settings_module()
 
-        schema = _get_schema()
-        if schema:
-            conf_args.setdefault("include_schemas", True)
-            conf_args.setdefault("version_table_schema", schema)
-            logger.info(
-                "Online migration target schema (Flask ctx): %s", schema
-            )
+    if conf_args is None:
+        conf_args = {}
+    conf_args.setdefault(
+        "process_revision_directives", _process_revision_directives
+    )
 
-        with engine.connect() as connection:
-            if schema:
-                connection.execute(
-                    text(f"SET search_path TO {schema}, public")
-                )
-            context.configure(
-                connection=connection,
-                target_metadata=_get_metadata(),
-                **conf_args,
-            )
-            with context.begin_transaction():
-                context.run_migrations()
-    else:
-        # ── Standalone / CI path (APP_SETTINGS_MODULE) ────────────────────
-        from sqlalchemy import engine_from_config, pool  # noqa: PLC0415
+    schema = _get_schema()
+    if schema:
+        conf_args.setdefault("include_schemas", True)
+        conf_args.setdefault("version_table_schema", schema)
+        logger.info("Online migration target schema: %s", schema)
 
-        db_url = _get_url_from_settings_module()
-        connectable = engine_from_config(
-            {"sqlalchemy.url": db_url},
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
+    connectable = _build_engine_with_schema(url, schema)
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=_get_metadata(),
+            **conf_args,
         )
-
-        schema = _get_schema()
-        with connectable.connect() as connection:
-            if schema:
-                connection.execute(
-                    text(f"SET search_path TO {schema}, public")
-                )
-                logger.info(
-                    "Online migration target schema (standalone): %s", schema
-                )
-            configure_kwargs: dict = dict(
-                connection=connection,
-                target_metadata=_get_metadata(),
-                process_revision_directives=_process_revision_directives,
-            )
-            if schema:
-                configure_kwargs["include_schemas"] = True
-                configure_kwargs["version_table_schema"] = schema
-            context.configure(**configure_kwargs)
-            with context.begin_transaction():
-                context.run_migrations()
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
