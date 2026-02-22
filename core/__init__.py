@@ -103,9 +103,6 @@ def create_app(settings_module="config.dev") -> Flask:
     login_manager.init_app(app)
     print("login manager plugin loaded.")
 
-    # if not app.config.get("LOCAL_DEV", False) and not app.config.get("TESTING", False):
-    #     set_session_schema(schema=app.get("SQLALCHEMY_DATABASE_SCHEMA"))
-
     csrf.init_app(app)
     print("csrf plugin loaded.")
 
@@ -138,6 +135,21 @@ def create_app(settings_module="config.dev") -> Flask:
 
     db.init_app(app)
     print("database plugin loaded.")
+
+    # ── Schema routing ────────────────────────────────────────────────────
+    # Resolve the SQLAlchemy placeholder "per_env" → actual schema name so
+    # that all ORM queries target the correct per-environment schema.
+    # Skipped for local/SQLite configs that set SQLALCHEMY_DATABASE_SCHEMA
+    # to "None" or leave it empty.
+    _db_schema: str | None = app.config.get("SQLALCHEMY_DATABASE_SCHEMA")
+    if _db_schema and _db_schema.lower() not in ("none", "public", ""):
+        with app.app_context():
+            db.engine.update_execution_options(
+                schema_translate_map={"per_env": _db_schema}
+            )
+        app.logger.info(
+            "Database schema routing activated: per_env \u2192 %s", _db_schema
+        )
 
     migrate.init_app(app, db)
     print("migrate plugin loaded.")

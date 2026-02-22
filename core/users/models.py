@@ -18,7 +18,7 @@ class GwUserRole(db.Model):
     """Declare the model for the available roles."""
 
     __table_args__ = {
-        # "schema": "per_environment",
+        "schema": "per_env",
         "comment": "Define the role of the user.",
     }
     __tablename__ = "gw_user_role"
@@ -26,7 +26,7 @@ class GwUserRole(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     role = db.Column(db.String(50), unique=False, nullable=False)
     gwuser_id = db.Column(
-        UUID(as_uuid=True), db.ForeignKey("gw_user.id"), nullable=False
+        UUID(as_uuid=True), db.ForeignKey("per_env.gw_user.id"), nullable=False
     )
     created_on = db.Column(db.DateTime, nullable=False)
 
@@ -52,7 +52,7 @@ class GwUser(db.Model, UserMixin):
     """Declare the user model class."""
 
     __table_args__ = {
-        # "schema": "per_environment",
+        "schema": "per_env",
         "comment": "Define the properties of the user.",
     }
     __tablename__ = "gw_user"
@@ -334,6 +334,7 @@ class RefreshToken(db.Model):
     """Model for storing refresh tokens with rotation and revocation support."""
 
     __table_args__ = {
+        "schema": "per_env",
         "comment": "Stores refresh tokens with family-based reuse detection.",
     }
     __tablename__ = "refresh_token"
@@ -341,7 +342,7 @@ class RefreshToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     token = db.Column(db.String(255), unique=True, nullable=False)  # hashed
     user_id = db.Column(
-        UUID(as_uuid=True), db.ForeignKey("gw_user.id"), nullable=False
+        UUID(as_uuid=True), db.ForeignKey("per_env.gw_user.id"), nullable=False
     )
     family_id = db.Column(
         UUID(as_uuid=True), nullable=False, default=uuid.uuid4
@@ -467,7 +468,7 @@ class StatsApiEndpoints(db.Model):
     """Declare the model for the statistic on endpoints calls."""
 
     __table_args__ = {
-        # "schema": "per_environment",
+        "schema": "per_env",
         "comment": "Define the statistic for the calls of endpoints.",
     }
     __tablename__ = "stats_api_endpoints"
@@ -518,13 +519,14 @@ class UserConsent(db.Model):
     """Declare the model for per-type GDPR consent records."""
 
     __table_args__ = {
+        "schema": "per_env",
         "comment": "Tracks GDPR consent entries per user per consent type.",
     }
     __tablename__ = "user_consent"
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
-        UUID(as_uuid=True), db.ForeignKey("gw_user.id"), nullable=False
+        UUID(as_uuid=True), db.ForeignKey("per_env.gw_user.id"), nullable=False
     )
     consent_type = db.Column(db.String(50), nullable=False)
     granted = db.Column(db.Boolean, nullable=False, default=False)

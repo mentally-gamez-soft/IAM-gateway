@@ -2,6 +2,8 @@
 
 import unittest
 
+from sqlalchemy import text
+
 from core import create_app, db
 from core.users.models import (
     GwUser,
@@ -22,6 +24,16 @@ class BaseTestClass(unittest.TestCase):
 
         # Create the flask context
         with self.app.app_context():
+            # Ensure the per-environment schema exists before creating tables.
+            # This handles cases where the DB exists but the schema does not
+            # (e.g. fresh CI environment, or first run against a new DB).
+            _schema = self.app.config.get("SQLALCHEMY_DATABASE_SCHEMA")
+            if _schema and _schema.lower() not in ("none", "public", ""):
+                db.session.execute(
+                    text(f"CREATE SCHEMA IF NOT EXISTS {_schema}")
+                )
+                db.session.commit()
+
             db.create_all()
 
             # Clean up any leftover data from previous runs before inserting

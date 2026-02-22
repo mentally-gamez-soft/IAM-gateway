@@ -8,7 +8,6 @@ Create Date: 2026-02-18 18:00:00.000000
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "837c9d1f23456"
@@ -23,8 +22,8 @@ def upgrade():
         "refresh_token",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("token", sa.String(255), nullable=False, unique=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("family_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("family_id", sa.UUID(), nullable=False),
         sa.Column("created_on", sa.DateTime(), nullable=False),
         sa.Column("expires_on", sa.DateTime(), nullable=False),
         sa.Column(
