@@ -20,6 +20,40 @@ services:
       retries: 3
       start_period: 10s
 
+  celery-worker:
+    build: ../../../
+    command: celery -A application.celery worker --loglevel=info --queues=email,celery
+    container_name: iam_gateway_celery_worker_dev
+    image: "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${APP_NAME}-${APP_ENV}-${APP_VERSION}"
+    env_file:
+      - .env
+      - app.version.env
+      - app.name.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../../logs:/app/logs
+    restart: unless-stopped
+
+  celery-flower:
+    build: ../../../
+    command: celery -A application.celery flower --port=5555 --basic-auth=${FLOWER_BASIC_AUTH:-admin:admin}
+    container_name: iam_gateway_celery_flower_dev
+    image: "${DOCKER_REGISTRY}/${DOCKER_REPOSITORY}:${APP_NAME}-${APP_ENV}-${APP_VERSION}"
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+      - app.version.env
+      - app.name.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: iam_gateway_redis_dev
