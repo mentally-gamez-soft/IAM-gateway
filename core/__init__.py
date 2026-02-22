@@ -12,6 +12,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 
 from config.validate_config import validate_env_config
+from core.tasks import init_celery
 from server.config.logs import configure_logging
 from server.config.mails import mail
 
@@ -156,6 +157,9 @@ def create_app(settings_module="config.dev") -> Flask:
 
     mail.init_app(app)
     print("mail plugin loaded.")
+
+    init_celery(app)
+    print("celery plugin loaded.")
 
     # Reconfigure limiter with the storage URI from app config then init
     limiter._storage_uri = app.config.get("RATELIMIT_STORAGE_URI", "memory://")
