@@ -83,7 +83,7 @@ class BaseTestClass(unittest.TestCase):
             password (str): the password for a user
 
         Returns:
-            _type_: _description_
+            Response: the response
         """
         return self.client.post(
             "/login",
@@ -103,7 +103,7 @@ class BaseTestClass(unittest.TestCase):
         )
 
     def add_role(self, payload):
-        """Declare a utility method to logout a user.
+        """Declare a utility method to add a role to a user.
 
         Returns:
             Response: the response

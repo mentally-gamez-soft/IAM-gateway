@@ -34,7 +34,6 @@ def load_user(user_id: uuid):
     """
     if user_id is None:
         return None  # ← guard prevents loop on anonymous requests
-    logger.info("Try to reload the user from session.")
     user = GwUser.get_by_id(user_id)
     if user is None or user.deleted:
         return None
