@@ -1376,3 +1376,61 @@ to whitelisted domains; local, dev, and testing environments allow `*`.
 | `CORS_METHODS` | `GET,POST,PUT,DELETE,OPTIONS` | inherited | inherited | inherited |
 | `CORS_SUPPORTS_CREDENTIALS` | `True` | inherited | inherited | inherited |
 | `CORS_MAX_AGE` | `600` s | inherited | inherited | inherited |
+
+---
+
+### US-015 — Asynchronous Email Delivery via Celery + Redis
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-015-async-celery-email` |
+| **Status** | QA Testing |
+| **Started** | 2026-02-22 |
+| **Trello** | [US-015](https://trello.com/c/6995ab0ac08654bb60cff160) |
+
+#### Problem solved
+
+All email sending (account activation, password reset) was synchronous and
+blocked the HTTP response until the SMTP transaction completed.  This increased
+p95 latency on `/signup` and `/forgot-password` by hundreds of milliseconds and
+made the application vulnerable to SMTP timeouts under load.
+
+#### Solution
+
+Introduced **Celery 5 + Redis** as a task queue for all outbound email.
+A `send_email_task` Celery task handles message construction and delivery; route
+handlers call `send_email_task.delay(...)` so the HTTP response is returned
+before the SMTP transaction begins.  Failed deliveries are retried up to 3 times
+with exponential back-off (60 s → 120 s → 240 s).  A dead-letter log entry is
+written after permanent failure.  A **Flower** dashboard (dev only) provides
+real-time visibility into worker state and task history.
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-015-1 | `pyproject.toml`, `requirements.in`, `config/default.py`, `config/testing.py` | Added `celery[redis]>=5.3.0` and `flower>=2.0.0` dependencies; added `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `CELERY_TASK_SERIALIZER`, `CELERY_ACCEPT_CONTENT`, `CELERY_TASK_TRACK_STARTED`, `CELERY_TASK_TIME_LIMIT`, `CELERY_TASK_ALWAYS_EAGER`, `USE_ASYNC_EMAIL` to default config; testing overrides: `CELERY_TASK_ALWAYS_EAGER=True`, `CELERY_TASK_EAGER_PROPAGATES=True`, `USE_ASYNC_EMAIL=False` |
+| TASK-015-2 | `core/tasks/__init__.py` *(new)*, `core/tasks/email_tasks.py` *(new)* | `core/tasks/__init__.py`: `ContextTask` base class pushes Flask app context; `init_celery(app)` configures broker URL, result backend, task routing, and eager mode from app config; `celery` module-level instance exposed for CLI. `core/tasks/email_tasks.py`: `@celery.task(bind=True, name="core.tasks.email_tasks.send_email_task", max_retries=3, queue="email")` — builds `flask_mail.Message`, calls `mail.send()`; retries with exponential back-off; logs permanently-failed tasks to dead-letter queue |
+| TASK-015-3 | `core/users/routes/signup.py`, `server/config/mails.py` | `signup.py`: replaced `# TODO: send activation email` with `send_email_task.delay(...)` gated on `USE_ASYNC_EMAIL`; response returned immediately. `mails.py`: `send_password_reset_email()` now dispatches via `send_email_task.delay(...)` when `USE_ASYNC_EMAIL=True`, falls back to direct `mail.send()` otherwise |
+| TASK-015-4 | `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Dev: added `celery-worker` service (`--queues=email,celery`) and `celery-flower` service (port 5555, `FLOWER_BASIC_AUTH`). Prod: added `celery-worker` service (`--concurrency=2 --loglevel=warning`, CPU 0.50 / RAM 256 M, `app_bridge` network) |
+| TASK-015-5 | `core/tasks/email_tasks.py` | Retry policy: `max_retries=3`, `countdown = 60 × 2^retry_number` (60 s → 120 s → 240 s); after exhaustion the original exception is re-raised and an `ERROR`-level DLQ log entry is written |
+| TASK-015-6 | `Docker/application/dev/docker-compose-dev.yaml` | `celery-flower` service: `celery -A application.celery flower --port=5555 --basic-auth=${FLOWER_BASIC_AUTH:-admin:admin}`; port 5555 exposed on host; depends on `redis` and `celery-worker` |
+| TASK-015-7 | `tests/test_async_email.py` *(new)* | 12 tests across 3 classes: `TestSignupEmailDispatch` (7) — delay called when `USE_ASYNC_EMAIL=True`, not called when False, 200 returned immediately, response keys present; `TestSendEmailTask` (3) — success result, send-to-correct-recipient, HTML body; `TestPasswordResetEmailDispatch` (2) — delay called when async, `mail.send` called directly when sync. Retry tests use `task_eager_propagates=False` to exercise full retry cycle in eager mode |
+
+#### Celery configuration summary
+
+| Variable | Default | testing |
+|---|---|---|
+| `CELERY_BROKER_URL` | `redis://redis:6379/1` | (same) |
+| `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | (same) |
+| `CELERY_TASK_ALWAYS_EAGER` | `False` | `True` |
+| `CELERY_TASK_EAGER_PROPAGATES` | — | `True` |
+| `USE_ASYNC_EMAIL` | `True` | `False` |
+
+#### Flower dashboard (dev only)
+
+| Field | Value |
+|---|---|
+| **URL** | `http://localhost:5555` |
+| **Auth** | Basic — env var `FLOWER_BASIC_AUTH` (default `admin:admin`) |
+| **Command** | `celery -A application.celery flower --port=5555` |

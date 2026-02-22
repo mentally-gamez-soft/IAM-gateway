@@ -307,10 +307,55 @@ Access-Control-Allow-Credentials: true
 Access-Control-Max-Age: 600
 ```
 
+## Async Email Delivery (US-015)
+
+All outbound email (account activation, password reset) is dispatched
+asynchronously via a **Celery + Redis** task queue.  API responses are returned
+before the SMTP transaction begins, removing email latency from the critical
+path.
+
+### How it works
+
+1. A route handler calls `send_email_task.delay(to=..., subject=..., body=..., html_body=...)`.
+2. The Celery worker picks up the task and calls `mail.send()`.
+3. On failure the task retries up to **3 times** with exponential back-off (60 s → 120 s → 240 s).
+4. After permanent failure the task is logged as a dead-letter event.
+
+### Configuration
+
+| Variable | Default | testing |
+|---|---|---|
+| `CELERY_BROKER_URL` | `redis://redis:6379/1` | (same) |
+| `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | (same) |
+| `CELERY_TASK_ALWAYS_EAGER` | `False` | `True` |
+| `USE_ASYNC_EMAIL` | `True` | `False` |
+
+### Starting the Celery worker (local / dev)
+
+```bash
+# Requires Redis to be running (see docker-compose-dev.yaml)
+celery -A application.celery worker --loglevel=info --queues=email,celery
+```
+
+Or start the full dev stack (app + Redis + Celery worker + Flower) with:
+
+```bash
+docker compose -f Docker/application/dev/docker-compose-dev.yaml up
+```
+
+### Flower monitoring dashboard (dev only)
+
+| Field | Value |
+|---|---|
+| **URL** | `http://localhost:5555` |
+| **Credentials** | `FLOWER_BASIC_AUTH` env var (default `admin:admin`) |
+
+```bash
+celery -A application.celery flower --port=5555
+```
+
 ## Running application
 ## Local development
-
-    uv run -m flask --app application run --port 3456 --host 0.0.0.0
 
     APP_SETTINGS_MODULE="config.local" \
     FLASK_DEBUG=1 \
