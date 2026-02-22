@@ -322,6 +322,30 @@ Access-Control-Max-Age: 600
     uv run -m unittest tests.test_standard_routes
     uv run -m unittest tests.test_health
 
+    # Run the full test suite (all test files)
+    uv run -m unittest discover -s tests -t .
+
+### Test Coverage
+
+The project uses the [`coverage`](https://coverage.readthedocs.io/) library
+(configured via `.coveragerc`) to measure statement and branch coverage.
+
+**Run the full test suite and collect coverage data:**
+
+    uv run coverage run -m unittest discover -s tests -t .
+
+**Display a per-file coverage summary in the terminal:**
+
+    uv run coverage report
+
+**Generate an interactive HTML report:**
+
+    uv run coverage html
+    # Open htmlcov/index.html in a browser
+
+The HTML report is written to `htmlcov/` (excluded from version control via
+`.gitignore`).
+
 ### Running Database Migrations
 
 The migration runner (`migrations/env.py`) automatically selects the correct
