@@ -6,6 +6,7 @@ from logging.config import fileConfig
 from urllib.parse import urlparse
 
 from alembic import context
+from sqlalchemy import text
 
 # ---------------------------------------------------------------------------
 # Alembic config object — provides access to values in alembic.ini
@@ -72,6 +73,45 @@ def _get_url_from_settings_module() -> str:
         "Migration target from '%s': %s", settings_module, _mask_db_url(db_url)
     )
     return db_url
+
+
+def _get_schema() -> str | None:
+    """Return SQLALCHEMY_DATABASE_SCHEMA for the target environment, or None.
+
+    Resolution order mirrors get_database_url():
+    1. Flask application context (normal ``flask db`` usage)
+    2. APP_SETTINGS_MODULE environment variable (standalone Alembic / CI)
+
+    Returns None when:
+    - The config key is absent, empty, or the literal string "None"
+    - No settings module can be found
+    """
+    # 1. Flask context
+    try:
+        from flask import current_app  # noqa: PLC0415
+
+        schema = current_app.config.get("SQLALCHEMY_DATABASE_SCHEMA")
+        if schema and schema.lower() not in ("none", "public", ""):
+            return schema
+        return None
+    except RuntimeError:
+        pass
+
+    # 2. APP_SETTINGS_MODULE fallback
+    settings_module = os.environ.get("APP_SETTINGS_MODULE")
+    if settings_module:
+        try:
+            module = importlib.import_module(settings_module)
+            schema = getattr(module, "SQLALCHEMY_DATABASE_SCHEMA", None)
+            if schema and str(schema).lower() not in ("none", "public", ""):
+                logger.info(
+                    "Migration schema from '%s': %s", settings_module, schema
+                )
+                return str(schema)
+        except ImportError:
+            pass
+
+    return None
 
 
 def _try_flask_context():
@@ -161,12 +201,18 @@ def run_migrations_offline() -> None:
     Calls to context.execute() emit the given string to the script output.
     """
     url = get_database_url()
-    context.configure(
+    schema = _get_schema()
+    configure_kwargs: dict = dict(
         url=url,
         target_metadata=_get_metadata(),
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
+    if schema:
+        configure_kwargs["include_schemas"] = True
+        configure_kwargs["version_table_schema"] = schema
+        logger.info("Offline migration target schema: %s", schema)
+    context.configure(**configure_kwargs)
 
     with context.begin_transaction():
         context.run_migrations()
@@ -191,7 +237,19 @@ def run_migrations_online() -> None:
                 _process_revision_directives
             )
 
+        schema = _get_schema()
+        if schema:
+            conf_args.setdefault("include_schemas", True)
+            conf_args.setdefault("version_table_schema", schema)
+            logger.info(
+                "Online migration target schema (Flask ctx): %s", schema
+            )
+
         with engine.connect() as connection:
+            if schema:
+                connection.execute(
+                    text(f"SET search_path TO {schema}, public")
+                )
             context.configure(
                 connection=connection,
                 target_metadata=_get_metadata(),
@@ -210,12 +268,24 @@ def run_migrations_online() -> None:
             poolclass=pool.NullPool,
         )
 
+        schema = _get_schema()
         with connectable.connect() as connection:
-            context.configure(
+            if schema:
+                connection.execute(
+                    text(f"SET search_path TO {schema}, public")
+                )
+                logger.info(
+                    "Online migration target schema (standalone): %s", schema
+                )
+            configure_kwargs: dict = dict(
                 connection=connection,
                 target_metadata=_get_metadata(),
                 process_revision_directives=_process_revision_directives,
             )
+            if schema:
+                configure_kwargs["include_schemas"] = True
+                configure_kwargs["version_table_schema"] = schema
+            context.configure(**configure_kwargs)
             with context.begin_transaction():
                 context.run_migrations()
 
