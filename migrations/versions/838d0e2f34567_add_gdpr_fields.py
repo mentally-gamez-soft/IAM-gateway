@@ -8,7 +8,6 @@ Create Date: 2026-02-21 22:00:00.000000
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "838d0e2f34567"
@@ -49,7 +48,7 @@ def upgrade():
     op.create_table(
         "user_consent",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
         sa.Column("consent_type", sa.String(length=50), nullable=False),
         sa.Column(
             "granted", sa.Boolean(), nullable=False, server_default="false"
