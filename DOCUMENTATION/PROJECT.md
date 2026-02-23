@@ -1464,8 +1464,8 @@ server is degraded:
 stateDiagram-v2
     [*] --> CLOSED
     CLOSED --> CLOSED : delivery success\n(failure count reset)
-    CLOSED --> OPEN : failure_count ≥ SMTP_FAIL_MAX (5)\nconsecutive task-level failures
-    OPEN --> HALF_OPEN : SMTP_RESET_TIMEOUT elapsed (60 s)
+    CLOSED --> OPEN : failure_count ≥ CIRCUIT_BREAKER_MAX_FAIL (5)\nconsecutive task-level failures
+    OPEN --> HALF_OPEN : CIRCUIT_BREAKER_RESET_TIMEOUT elapsed (120 s)
     HALF_OPEN --> CLOSED : probe attempt succeeds
     HALF_OPEN --> OPEN : probe attempt fails
 ```

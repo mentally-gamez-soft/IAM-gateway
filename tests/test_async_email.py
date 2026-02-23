@@ -7,7 +7,7 @@ Test coverage (TASK-015-7)
  3.  ``send_email_task`` succeeds when ``mail.send`` works.
  4.  HTTP 200 is returned before email delivery completes.
  5.  ``send_email_task`` retries on transient SMTP failure.
- 6.  ``send_email_task`` retries exactly 3 times (4 calls total, via tenacity).
+ 6.  ``send_email_task`` retries exactly ``RETRY_CALLS`` times (``RETRY_CALLS + 1`` calls total, via tenacity).
  7.  ``send_email_task`` re-raises immediately on non-retryable exception.
  8.  Password-reset helper dispatches ``send_email_task.delay`` when async.
  9.  Password-reset helper falls back to synchronous send when not async.
@@ -34,6 +34,7 @@ from unittest.mock import MagicMock, patch
 
 import pybreaker
 
+from core.tasks.email_tasks import RETRIES_NUM
 from tests import BaseTestClass
 
 # ---------------------------------------------------------------------------
@@ -196,10 +197,10 @@ class TestSendEmailTask(BaseTestClass):
     def test_task_retries_exactly_max_retries_times(
         self, mock_mail, mock_sleep
     ):
-        """mail.send must be called exactly 4 times (1 initial + 3 tenacity
-        retries) before the exception propagates.
+        """mail.send must be called exactly RETRIES_NUM + 1 times (1 initial
+        + RETRIES_NUM tenacity retries) before the exception propagates.
 
-        tenacity owns the retry cycle; Celery’s max_retries is 0.
+        tenacity owns the retry cycle; Celery's max_retries is 0.
         ``time.sleep`` is patched so the exponential back-off is instant.
         """
         mock_mail.send.side_effect = OSError("Persistent SMTP failure")
@@ -207,9 +208,9 @@ class TestSendEmailTask(BaseTestClass):
         with self.assertRaises(OSError):
             self._apply_task()
 
-        self.assertEqual(4, mock_mail.send.call_count)
-        # tenacity must have invoked the back-off sleep 3 times
-        self.assertEqual(3, mock_sleep.call_count)
+        self.assertEqual(RETRIES_NUM + 1, mock_mail.send.call_count)
+        # tenacity must have invoked the back-off sleep RETRIES_NUM times
+        self.assertEqual(RETRIES_NUM, mock_sleep.call_count)
 
     @patch(_MAIL_PATH)
     def test_task_re_raises_immediately_on_non_retryable_exception(

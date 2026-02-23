@@ -319,7 +319,7 @@ path.
 1. A route handler calls `send_email_task.delay(to=..., subject=..., body=..., html_body=...)`.
 2. The Celery worker picks up the task and calls `mail.send()` via Flask-Mail.
 3. On transient failure (network / IO errors) the task retries up to **3 times** with exponential back-off (60 s → 120 s → 240 s), managed by **tenacity**.
-4. A **pybreaker** circuit breaker trips after **5 consecutive task failures** and rejects further attempts until the SMTP server recovers (60 s cooldown).
+4. A **pybreaker** circuit breaker trips after **5 consecutive task failures** and rejects further attempts until the SMTP server recovers (120 s cooldown).
 5. After permanent failure (retries exhausted or circuit open) the task is logged as a dead-letter event.
 
 #### Async dispatch flow

@@ -8,8 +8,8 @@ Design
   permanent errors (auth, bad recipient, configuration) propagate immediately.
 * **Circuit breaker (pybreaker)**: wraps the entire tenacity-managed delivery
   sequence.  One *task-level* failure (even after 4 attempts internally) counts
-  as a single failure increment.  After ``SMTP_FAIL_MAX`` consecutive task
-  failures the breaker trips and rejects new tasks immediately, letting the
+  as a single failure increment.  After ``CIRCUIT_BREAKER_MAX_FAIL`` consecutive
+  task failures the breaker trips and rejects new tasks immediately, letting the
   worker queue drain and the mail server recover.
 * **Dead-letter**: after all retries are exhausted (or the circuit is open)
   the error is logged with full context and the task is marked ``FAILURE``.
@@ -31,6 +31,7 @@ Usage::
 """
 
 import logging
+from os import environ as _env
 
 import pybreaker
 from flask_mail import Message
@@ -56,14 +57,21 @@ _RETRYABLE_EXCEPTIONS = (ConnectionError, TimeoutError, OSError, IOError)
 # ---------------------------------------------------------------------------
 # SMTP circuit breaker
 #
-# Trips after SMTP_FAIL_MAX consecutive *task-level* failures — i.e. after a
-# task has already exhausted all of its tenacity retries.  One task execution
-# (regardless of how many internal attempts tenacity made) counts as a single
-# failure increment.  After SMTP_RESET_TIMEOUT seconds in the OPEN state the
-# breaker moves to HALF-OPEN and lets one probe attempt through.
+# Values are read from the same env vars used by config/default.py so that
+# a single .env file controls both the password-API breaker and this one.
+#
+# CIRCUIT_BREAKER_MAX_FAIL     — trips after this many consecutive task-level
+#                                failures (default 5).  One task execution,
+#                                regardless of how many internal tenacity
+#                                attempts were made, counts as one increment.
+# CIRCUIT_BREAKER_RESET_TIMEOUT — seconds in OPEN state before moving to
+#                                HALF-OPEN (default 120).
+# RETRY_CALLS                  — number of *extra* attempts after the first
+#                                (default 3 → 4 total attempts).
 # ---------------------------------------------------------------------------
-SMTP_FAIL_MAX = 5
-SMTP_RESET_TIMEOUT = 60
+SMTP_FAIL_MAX = int(_env.get("CIRCUIT_BREAKER_MAX_FAIL", 5))
+SMTP_RESET_TIMEOUT = int(_env.get("CIRCUIT_BREAKER_RESET_TIMEOUT", 120))
+RETRIES_NUM = int(_env.get("RETRY_CALLS", 3))
 
 smtp_breaker = pybreaker.CircuitBreaker(
     fail_max=SMTP_FAIL_MAX,
@@ -77,7 +85,7 @@ smtp_breaker = pybreaker.CircuitBreaker(
 # ---------------------------------------------------------------------------
 @retry(
     reraise=True,
-    stop=stop_after_attempt(4),  # 1 initial + 3 retries
+    stop=stop_after_attempt(RETRIES_NUM + 1),  # 1 initial + 3 retries
     wait=wait_exponential(
         multiplier=60, min=60, max=240
     ),  # 60 s → 120 s → 240 s
@@ -93,8 +101,8 @@ def _send_message(msg: Message) -> None:
     """Guard the tenacity-retried delivery with the SMTP circuit breaker.
 
     The breaker wraps the *entire* retry sequence so one task-level failure
-    (possibly spanning up to 4 internal attempts) counts as a single failure
-    increment towards ``SMTP_FAIL_MAX``.
+    (possibly spanning up to RETRIES_NUM + 1 internal attempts) counts as a
+    single failure increment towards ``CIRCUIT_BREAKER_MAX_FAIL``.
     """
     smtp_breaker.call(_deliver, msg)
 
