@@ -1400,10 +1400,75 @@ made the application vulnerable to SMTP timeouts under load.
 Introduced **Celery 5 + Redis** as a task queue for all outbound email.
 A `send_email_task` Celery task handles message construction and delivery; route
 handlers call `send_email_task.delay(...)` so the HTTP response is returned
-before the SMTP transaction begins.  Failed deliveries are retried up to 3 times
-with exponential back-off (60 s → 120 s → 240 s).  A dead-letter log entry is
-written after permanent failure.  A **Flower** dashboard (dev only) provides
-real-time visibility into worker state and task history.
+before the SMTP transaction begins.  Resilience is provided by two libraries
+working in concert: **tenacity** retries transient network/IO errors up to
+3 times with exponential back-off (60 s → 120 s → 240 s), while **pybreaker**
+trips the SMTP circuit breaker after 5 consecutive task-level failures,
+rejecting new attempts for 60 s and allowing the mail server to recover.  A
+dead-letter log entry is written after permanent failure.  A **Flower**
+dashboard (dev only) provides real-time visibility into worker state and task
+history.
+
+#### Delivery architecture
+
+**Async dispatch flow** — HTTP response is returned before the SMTP
+transaction begins:
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Route as Route Handler
+    participant Broker as Redis Broker
+    participant Worker as Celery Worker
+    participant SMTP as SMTP Server
+    Client->>Route: POST /signup or /forgot-password
+    Route->>Broker: send_email_task.delay(...)
+    Route-->>Client: 200 OK (immediate — before SMTP)
+    Broker->>Worker: Dequeue task from email queue
+    Worker->>SMTP: mail.send()
+    alt Delivery succeeds
+        SMTP-->>Worker: OK
+        Worker-->>Broker: status = sent
+    else Transient error — tenacity retries
+        loop up to 3 retries (60 s → 120 s → 240 s)
+            SMTP-->>Worker: ConnectionError / TimeoutError / OSError
+            Worker->>SMTP: mail.send() (retry)
+        end
+        Worker-->>Broker: status = FAILURE (DLQ logged)
+    else Circuit breaker OPEN
+        Worker-->>Broker: CircuitBreakerError (DLQ logged)
+    end
+```
+
+**Three-layer resilience model** — each layer has a distinct responsibility:
+
+```mermaid
+flowchart TD
+    A["send_email_task\nCelery · max_retries=0"] --> B{"smtp_breaker\npybreaker"}
+    B -->|"OPEN — ≥5 consecutive failures"| C["CircuitBreakerError\nlogged → task FAILURE"]
+    B -->|"CLOSED / HALF-OPEN"| D["_deliver(msg)\ntenacity @retry"]
+    D --> E["mail.send()\nFlask-Mail"]
+    E -->|Success| F["{status: sent}"]
+    E -->|"Transient error\nConnectionError · TimeoutError\nOSError · IOError"| G{"attempt ≤ 4?"}
+    G -->|Yes| H["wait exponential\n60 s → 120 s → 240 s"]
+    H --> D
+    G -->|"No — retries exhausted"| I["re-raise exception\nfailure_count +1 in breaker"]
+    E -->|"Permanent error\nRuntimeError · ValueError"| I
+    I --> J["ERROR logged → task FAILURE / DLQ"]
+```
+
+**Circuit breaker state machine** — protects the worker queue when the SMTP
+server is degraded:
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    CLOSED --> CLOSED : delivery success\n(failure count reset)
+    CLOSED --> OPEN : failure_count ≥ SMTP_FAIL_MAX (5)\nconsecutive task-level failures
+    OPEN --> HALF_OPEN : SMTP_RESET_TIMEOUT elapsed (60 s)
+    HALF_OPEN --> CLOSED : probe attempt succeeds
+    HALF_OPEN --> OPEN : probe attempt fails
+```
 
 #### Changes implemented
 

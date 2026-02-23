@@ -317,9 +317,50 @@ path.
 ### How it works
 
 1. A route handler calls `send_email_task.delay(to=..., subject=..., body=..., html_body=...)`.
-2. The Celery worker picks up the task and calls `mail.send()`.
-3. On failure the task retries up to **3 times** with exponential back-off (60 s → 120 s → 240 s).
-4. After permanent failure the task is logged as a dead-letter event.
+2. The Celery worker picks up the task and calls `mail.send()` via Flask-Mail.
+3. On transient failure (network / IO errors) the task retries up to **3 times** with exponential back-off (60 s → 120 s → 240 s), managed by **tenacity**.
+4. A **pybreaker** circuit breaker trips after **5 consecutive task failures** and rejects further attempts until the SMTP server recovers (60 s cooldown).
+5. After permanent failure (retries exhausted or circuit open) the task is logged as a dead-letter event.
+
+#### Async dispatch flow
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Route as Route Handler
+    participant Broker as Redis Broker
+    participant Worker as Celery Worker
+    participant SMTP as SMTP Server
+    Client->>Route: POST /signup or /forgot-password
+    Route->>Broker: send_email_task.delay(...)
+    Route-->>Client: 200 OK (immediate — before SMTP)
+    Broker->>Worker: Dequeue task
+    Worker->>SMTP: mail.send()
+    alt Success
+        SMTP-->>Worker: OK
+        Worker-->>Broker: status = sent
+    else Failure
+        SMTP-->>Worker: Error
+        Worker-->>Broker: status = FAILURE (retried / DLQ)
+    end
+```
+
+#### Delivery resilience layers
+
+```mermaid
+flowchart TD
+    A["send_email_task\nCelery · max_retries=0"] --> B{"smtp_breaker\npybreaker"}
+    B -->|"OPEN — 5 consecutive failures"| C["CircuitBreakerError\nlogged → FAILURE"]
+    B -->|"CLOSED / HALF-OPEN"| D["_deliver(msg)\ntenacity @retry"]
+    D --> E["mail.send()"]
+    E -->|Success| F["{status: sent}"]
+    E -->|"Transient error\nConnectionError · TimeoutError · OSError"| G{"attempt ≤ 4?"}
+    G -->|Yes| H["wait exponential\n60 s → 120 s → 240 s"]
+    H --> D
+    G -->|"No — exhausted"| I["re-raise · failure_count +1"]
+    E -->|"Permanent error\nRuntimeError · ValueError"| I
+    I --> J["ERROR logged → task FAILURE"]
+```
 
 ### Configuration
 
