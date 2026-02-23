@@ -3,6 +3,9 @@
 import os
 
 from core import create_app
+from core.tasks import (  # noqa: F401 — exposed for `celery -A application.celery`
+    celery,
+)
 
 settings_module = os.getenv("APP_SETTINGS_MODULE")
 print("settings_module = {}".format(settings_module))

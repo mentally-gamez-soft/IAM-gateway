@@ -48,14 +48,23 @@ This can be achieved by introducing Celery with Redis as a message broker for ba
 
 ## Related Tasks
 
-- [task_015_1.md](../TASKS/task_015_1.md) — Set up Celery and Redis infrastructure
-- [task_015_2.md](../TASKS/task_015_2.md) — Create Celery task for email sending
-- [task_015_3.md](../TASKS/task_015_3.md) — Create Celery task for external API calls
-- [task_015_4.md](../TASKS/task_015_4.md) — Update routes to use async tasks
-- [task_015_5.md](../TASKS/task_015_5.md) — Add Redis and Celery worker to Docker Compose
-- [task_015_6.md](../TASKS/task_015_6.md) — Configure task monitoring and error handling
-- [task_015_7.md](../TASKS/task_015_7.md) — Write tests for async task execution
+- [task_015_1.md](../TASKS/task_015_1.md) — Install and configure Celery with Redis broker
+- [task_015_2.md](../TASKS/task_015_2.md) — Create async email sending task
+- [task_015_3.md](../TASKS/task_015_3.md) — Replace synchronous email calls with task dispatch
+- [task_015_4.md](../TASKS/task_015_4.md) — Add Celery worker to Docker Compose
+- [task_015_5.md](../TASKS/task_015_5.md) — Configure retry logic and dead-letter queue
+- [task_015_6.md](../TASKS/task_015_6.md) — Add Flower monitoring dashboard
+- [task_015_7.md](../TASKS/task_015_7.md) — Write tests for async email dispatch
+
+## Implementation Status
+
+| Field | Value |
+|---|---|
+| **Status** | QA Testing |
+| **Branch** | `feature/US-015-async-celery-email` |
+| **Started** | 2026-02-22 |
+| **Tests** | 12 / 12 passing |
 
 ## Trello
 
-[US-015 — Asynchronous Email Delivery](https://trello.com/c/US7pStaM)
+[US-015 — Asynchronous Email Delivery](https://trello.com/c/6995ab0ac08654bb60cff160)
