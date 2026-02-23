@@ -403,10 +403,13 @@ class RefreshToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     token = db.Column(db.String(255), unique=True, nullable=False)  # hashed
     user_id = db.Column(
-        UUID(as_uuid=True), db.ForeignKey("per_env.gw_user.id"), nullable=False
+        UUID(as_uuid=True),
+        db.ForeignKey("per_env.gw_user.id"),
+        nullable=False,
+        index=True,
     )
     family_id = db.Column(
-        UUID(as_uuid=True), nullable=False, default=uuid.uuid4
+        UUID(as_uuid=True), nullable=False, default=uuid.uuid4, index=True
     )
     created_on = db.Column(
         db.DateTime, nullable=False, default=arrow.utcnow().datetime
