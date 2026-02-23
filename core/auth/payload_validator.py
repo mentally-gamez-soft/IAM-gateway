@@ -33,10 +33,9 @@ def validate_generic_payload(f):
     def decorated_function(*args, **kwargs):
         json = request.get_json()
         try:
-            # Accept both legacy "jwt" and newer "access_token" key names.
             jwt = json["data"].get("jwt") or json["data"].get("access_token")
             if not jwt:
-                raise KeyError("No token found in request data")
+                raise KeyError("No token provided")
         except:
             return (
                 jsonify(

@@ -190,6 +190,21 @@ CORS_SUPPORTS_CREDENTIALS: bool = True
 CORS_MAX_AGE: int = 600  # preflight cache — 10 minutes
 
 ################################################################
+# ### Celery / async task worker configuration             ####
+################################################################
+CELERY_BROKER_URL = env.get("CELERY_BROKER_URL", "redis://redis:6379/1")
+CELERY_RESULT_BACKEND = env.get(
+    "CELERY_RESULT_BACKEND", "redis://redis:6379/1"
+)
+CELERY_TASK_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 300  # 5 minutes hard limit per task
+CELERY_TASK_ALWAYS_EAGER = False  # Override to True in testing
+# When True, email tasks are dispatched via Celery; False = synchronous send
+USE_ASYNC_EMAIL = env.get("USE_ASYNC_EMAIL", "True").lower() == "true"
+
+################################################################
 # ### API with token auth. CSRF protection disabled   ##########
 ################################################################
 WTF_CSRF_ENABLED = False

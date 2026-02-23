@@ -2,12 +2,15 @@
 
 import unittest
 
+from sqlalchemy import text
+
 from core import create_app, db
 from core.users.models import (
     GwUser,
     GwUserRole,
     RefreshToken,
     StatsApiEndpoints,
+    UserConsent,
 )
 
 
@@ -21,10 +24,21 @@ class BaseTestClass(unittest.TestCase):
 
         # Create the flask context
         with self.app.app_context():
+            # Ensure the per-environment schema exists before creating tables.
+            # This handles cases where the DB exists but the schema does not
+            # (e.g. fresh CI environment, or first run against a new DB).
+            _schema = self.app.config.get("SQLALCHEMY_DATABASE_SCHEMA")
+            if _schema and _schema.lower() not in ("none", "public", ""):
+                db.session.execute(
+                    text(f"CREATE SCHEMA IF NOT EXISTS {_schema}")
+                )
+                db.session.commit()
+
             db.create_all()
 
             # Clean up any leftover data from previous runs before inserting
             db.session.query(RefreshToken).delete()
+            db.session.query(UserConsent).delete()
             db.session.query(GwUserRole).delete()
             db.session.query(GwUser).delete()
             db.session.query(StatsApiEndpoints).delete()
@@ -43,6 +57,7 @@ class BaseTestClass(unittest.TestCase):
         with self.app.app_context():
             # Delete all the data from the DB (order matters: FK constraints)
             db.session.query(RefreshToken).delete()
+            db.session.query(UserConsent).delete()
             db.session.query(GwUserRole).delete()
             db.session.query(GwUser).delete()
             db.session.query(StatsApiEndpoints).delete()
@@ -80,7 +95,7 @@ class BaseTestClass(unittest.TestCase):
             password (str): the password for a user
 
         Returns:
-            _type_: _description_
+            Response: the response
         """
         return self.client.post(
             "/login",
@@ -100,7 +115,7 @@ class BaseTestClass(unittest.TestCase):
         )
 
     def add_role(self, payload):
-        """Declare a utility method to logout a user.
+        """Declare a utility method to add a role to a user.
 
         Returns:
             Response: the response

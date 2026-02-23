@@ -17,6 +17,7 @@ from core.common.messages import (
     __ACCESS_DENIED,
     __ACTIVATION_REQUIRED,
     __AUTH_REQUIRED,
+    __DELETED_USER_ACCESS_DENIED,
 )
 from core.users.models import GwUser
 
@@ -54,9 +55,9 @@ def authorization_guard(f, role=None):
         # Authentication gate — accept both legacy "jwt" and new "access_token".
         try:
             jwt = json["data"].get("jwt") or json["data"].get("access_token")
-            if not jwt:
-                raise KeyError("No token found in request data")
             user = json["data"]["user"]
+            if not jwt:
+                raise KeyError("No token provided")
         except Exception as e:
             return (
                 jsonify(
@@ -78,6 +79,24 @@ def authorization_guard(f, role=None):
                 jsonify(
                     {
                         "message": __ACCESS_DENIED,
+                        "status": __RESPONSE_STATUS_401,
+                    }
+                ),
+                __RESPONSE_STATUS_401,
+                {
+                    "X-CSRFToken": generate_csrf(
+                        secret_key=current_app.config.get("SECRET_KEY")
+                    )
+                },
+            )
+
+        # Block soft-deleted users
+        gw_user = GwUser.get_by_id(decode_as_base64(user))
+        if gw_user.deleted:
+            return (
+                jsonify(
+                    {
+                        "message": __DELETED_USER_ACCESS_DENIED,
                         "status": __RESPONSE_STATUS_401,
                     }
                 ),

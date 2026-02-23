@@ -8,6 +8,7 @@ from core.users.models import GwUser
 
 from . import (
     email_activation,
+    gdpr,
     health,
     login,
     logout,
@@ -34,5 +35,7 @@ def load_user(user_id: uuid):
     """
     if user_id is None:
         return None  # ← guard prevents loop on anonymous requests
-    logger.info("Try to reload the user from session.")
-    return GwUser.get_by_id(user_id)
+    user = GwUser.get_by_id(user_id)
+    if user is None or user.deleted:
+        return None
+    return user

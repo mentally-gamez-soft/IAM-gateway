@@ -131,6 +131,38 @@ curl -s -X PUT http://localhost:5000/profile \
     Both endpoints bypass authentication and CSRF protection.
     Docker HEALTHCHECK is configured in Dockerfile and both compose files using wget --spider http://localhost:5000/health
 
+### GDPR Compliance Endpoints (US-012)
+
+All endpoints require a valid JWT in the request body (`data.access_token` + `data.user`).
+
+#### Export Personal Data
+    POST /user/data
+    Returns a full JSON snapshot of all personal data held for the authenticated user.
+    Response 200: {"data": {"account": {...}, "roles": [...], "consents": [...], "export_metadata": {...}}}
+    Response 401: invalid or expired token
+
+#### Delete Account (Soft Delete + Anonymize)
+    DELETE /user/account
+    Body: {"data": {"user": <b64>, "access_token": <jwt>, "confirm": true, "password": "<current password>"}}
+    Soft-deletes and anonymizes the user account. All refresh tokens are revoked.
+    Response 200: account deleted successfully
+    Response 400: confirm not set to true
+    Response 401: incorrect password
+    Response 409: account already deleted
+
+    Anonymization: email → deleted_{uuid}@deleted.invalid, username → deleted_{uuid[:8]}
+
+#### Retrieve Consent Preferences
+    POST /user/consent
+    Returns the current GDPR consent status and per-type consent records.
+    Response 200: {"data": {"consent_given": bool, "consent_at": "<ISO8601>", "consents": [...]}}
+
+#### Update Consent Preferences
+    PUT /user/consent
+    Body: {"data": {"user": <b64>, "access_token": <jwt>, "consent_given": true|false, "consents": [{"consent_type": "marketing", "granted": true}, ...]}}
+    Response 200: updated consent_given + consent_at
+    Response 400: missing consent_given field
+
 ## Structured JSON Logging (US-004)
 
 
@@ -317,10 +349,96 @@ Access-Control-Allow-Credentials: true
 Access-Control-Max-Age: 600
 ```
 
+## Async Email Delivery (US-015)
+
+All outbound email (account activation, password reset) is dispatched
+asynchronously via a **Celery + Redis** task queue.  API responses are returned
+before the SMTP transaction begins, removing email latency from the critical
+path.
+
+### How it works
+
+1. A route handler calls `send_email_task.delay(to=..., subject=..., body=..., html_body=...)`.
+2. The Celery worker picks up the task and calls `mail.send()` via Flask-Mail.
+3. On transient failure (network / IO errors) the task retries up to **3 times** with exponential back-off (60 s → 120 s → 240 s), managed by **tenacity**.
+4. A **pybreaker** circuit breaker trips after **5 consecutive task failures** and rejects further attempts until the SMTP server recovers (120 s cooldown).
+5. After permanent failure (retries exhausted or circuit open) the task is logged as a dead-letter event.
+
+#### Async dispatch flow
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Route as Route Handler
+    participant Broker as Redis Broker
+    participant Worker as Celery Worker
+    participant SMTP as SMTP Server
+    Client->>Route: POST /signup or /forgot-password
+    Route->>Broker: send_email_task.delay(...)
+    Route-->>Client: 200 OK (immediate — before SMTP)
+    Broker->>Worker: Dequeue task
+    Worker->>SMTP: mail.send()
+    alt Success
+        SMTP-->>Worker: OK
+        Worker-->>Broker: status = sent
+    else Failure
+        SMTP-->>Worker: Error
+        Worker-->>Broker: status = FAILURE (retried / DLQ)
+    end
+```
+
+#### Delivery resilience layers
+
+```mermaid
+flowchart TD
+    A["send_email_task\nCelery · max_retries=0"] --> B{"smtp_breaker\npybreaker"}
+    B -->|"OPEN — 5 consecutive failures"| C["CircuitBreakerError\nlogged → FAILURE"]
+    B -->|"CLOSED / HALF-OPEN"| D["_deliver(msg)\ntenacity @retry"]
+    D --> E["mail.send()"]
+    E -->|Success| F["{status: sent}"]
+    E -->|"Transient error\nConnectionError · TimeoutError · OSError"| G{"attempt ≤ 4?"}
+    G -->|Yes| H["wait exponential\n60 s → 120 s → 240 s"]
+    H --> D
+    G -->|"No — exhausted"| I["re-raise · failure_count +1"]
+    E -->|"Permanent error\nRuntimeError · ValueError"| I
+    I --> J["ERROR logged → task FAILURE"]
+```
+
+### Configuration
+
+| Variable | Default | testing |
+|---|---|---|
+| `CELERY_BROKER_URL` | `redis://redis:6379/1` | (same) |
+| `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | (same) |
+| `CELERY_TASK_ALWAYS_EAGER` | `False` | `True` |
+| `USE_ASYNC_EMAIL` | `True` | `False` |
+
+### Starting the Celery worker (local / dev)
+
+```bash
+# Requires Redis to be running (see docker-compose-dev.yaml)
+celery -A application.celery worker --loglevel=info --queues=email,celery
+```
+
+Or start the full dev stack (app + Redis + Celery worker + Flower) with:
+
+```bash
+docker compose -f Docker/application/dev/docker-compose-dev.yaml up
+```
+
+### Flower monitoring dashboard (dev only)
+
+| Field | Value |
+|---|---|
+| **URL** | `http://localhost:5555` |
+| **Credentials** | `FLOWER_BASIC_AUTH` env var (default `admin:admin`) |
+
+```bash
+celery -A application.celery flower --port=5555
+```
+
 ## Running application
 ## Local development
-
-    uv run -m flask --app application run --port 3456 --host 0.0.0.0
 
     APP_SETTINGS_MODULE="config.local" \
     FLASK_DEBUG=1 \
@@ -331,6 +449,30 @@ Access-Control-Max-Age: 600
 ### Executing the tests suit
     uv run -m unittest tests.test_standard_routes
     uv run -m unittest tests.test_health
+
+    # Run the full test suite (all test files)
+    uv run -m unittest discover -s tests -t .
+
+### Test Coverage
+
+The project uses the [`coverage`](https://coverage.readthedocs.io/) library
+(configured via `.coveragerc`) to measure statement and branch coverage.
+
+**Run the full test suite and collect coverage data:**
+
+    uv run coverage run -m unittest discover -s tests -t .
+
+**Display a per-file coverage summary in the terminal:**
+
+    uv run coverage report
+
+**Generate an interactive HTML report:**
+
+    uv run coverage html
+    # Open htmlcov/index.html in a browser
+
+The HTML report is written to `htmlcov/` (excluded from version control via
+`.gitignore`).
 
 ### Running Database Migrations
 

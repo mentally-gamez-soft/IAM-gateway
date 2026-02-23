@@ -67,7 +67,7 @@ def add_role():
     )
     json = request.get_json()
 
-    jwt = json["data"]["jwt"]
+    jwt = json["data"].get("jwt") or json["data"].get("access_token")
     role = json["data"]["role"]
 
     jwt_decoded = decode_jwt(jwt)

@@ -802,9 +802,26 @@ flowchart TD
 - **Gitleaks** — Scan for secrets committed into the repository (API keys, passwords, tokens)
 
 #### Stage 3 — Unit & Integration Tests
-- Run the test suite: `uv run -m unittest tests.test_standard_routes`
-- Generate code coverage reports (recommend `pytest-cov`)
+- Run the full test suite: `uv run -m unittest discover -s tests -t .`
+- Measure code coverage using the `coverage` library (see [Test Coverage](#test-coverage) below)
 - Set a minimum coverage threshold (e.g., 80%)
+
+#### Test Coverage
+
+Code coverage is measured with the [`coverage`](https://coverage.readthedocs.io/)
+library. The configuration is stored in `.coveragerc` at the project root and
+enables **branch coverage** for the `core`, `config`, and `server` packages.
+
+| Command | Description |
+|---|---|
+| `uv run coverage run -m unittest discover -s tests -t .` | Run full test suite and collect coverage data |
+| `uv run coverage report` | Print per-file coverage table (with missing lines) to the terminal |
+| `uv run coverage html` | Generate interactive HTML report in `htmlcov/` |
+| `uv run coverage xml` | Generate `coverage.xml` for CI tools (e.g., SonarQube, Codecov) |
+
+The `htmlcov/` directory and the `.coverage` data file are excluded from
+version control via `.gitignore`. The current baseline coverage is **46%**
+(statement + branch); the target is **80%** as more unit tests are added.
 
 #### Stage 4 — Dependency Vulnerability Scanning
 - **pip-audit** or **Safety** — Scan `requirements.txt` / `pyproject.toml` dependencies for known CVEs
@@ -1018,9 +1035,42 @@ gitgraph
 | Field | Value |
 |---|---|
 | **Title** | Implement User Account Soft Delete and Data Export |
-| **Description** | As a **user**, I want to be able to delete my account and export my data, so that my rights under GDPR/data protection regulations are respected. A `DELETE /account` endpoint should soft-delete the user (already partially supported via `deleted` flag and `deactivated_on`). A `GET /account/export` endpoint should return all user data in JSON format. A scheduled job should permanently purge soft-deleted accounts after a retention period (e.g., 30 days). |
+| **Description** | As a **user**, I want to be able to delete my account and export my data, so that my rights under GDPR/data protection regulations are respected. |
 | **Priority** | **Medium** |
 | **Estimated Cost** | **5 Story Points** (~2.5 days) |
+| **Status** | ✅ **Implemented** — `feature/US-012-gdpr-account-deletion` |
+
+#### Implemented Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/user/data` | Export all personal data (GDPR Article 20). Returns account info, roles, consents, metadata. Requires auth. |
+| `DELETE` | `/user/account` | Soft-delete and anonymize the account (GDPR right to erasure). Requires `confirm: true` + current `password`. |
+| `POST` | `/user/consent` | Retrieve current GDPR consent preferences. |
+| `PUT` | `/user/consent` | Update GDPR consent preferences. Accepts per-type consent entries. |
+
+#### Database Changes
+
+New columns on `gw_user`:
+- `deleted_at` (`DateTime`, nullable) — GDPR audit timestamp of when the account was deleted.
+- `consent_given` (`Boolean`, nullable) — top-level consent flag.
+- `consent_at` (`DateTime`, nullable) — timestamp of the last consent change.
+
+New table `user_consent`:
+- Tracks per-type GDPR consent (e.g., `marketing`, `analytics`) per user.
+- Supports grant/revoke lifecycle with `granted_at`/`revoked_at` audit fields.
+- Cascade-deletes when the parent user is removed.
+
+#### Security Behaviour
+
+- Deleted users are blocked at three layers: **login**, **`authorization_guard` decorator**, and **`user_loader`**.
+- `GwUser.is_active()` now also checks `not self.deleted`, so deleted users are never considered active.
+- On deletion, the `email` is anonymized to `deleted_{uuid}@deleted.invalid` and `username` to `deleted_{uuid[:8]}`, preventing re-registration with old credentials.
+- All refresh tokens are revoked atomically before deletion.
+
+#### Migration
+
+Alembic migration `838d0e2f34567_add_gdpr_fields.py` — upgrades from `837c9d1f23456`.
 
 ---
 
@@ -1433,3 +1483,126 @@ curl -s -X PUT http://localhost:5000/profile \
 | TASK-011-4 | `static/swagger-docs/swagger.json` | Added `GET /profile` and `PUT /profile` entries with full request/response schemas |
 | TASK-011-5 | `tests/test_profile.py` *(new)* | 18 tests covering authentication enforcement, happy-path reads/writes, field validation, and protected-field rejection |
 
+
+---
+
+### US-015 — Asynchronous Email Delivery via Celery + Redis
+
+| Field | Detail |
+|---|---|
+| **Branch** | `feature/US-015-async-celery-email` |
+| **Status** | QA Testing |
+| **Started** | 2026-02-22 |
+| **Trello** | [US-015](https://trello.com/c/6995ab0ac08654bb60cff160) |
+
+#### Problem solved
+
+All email sending (account activation, password reset) was synchronous and
+blocked the HTTP response until the SMTP transaction completed.  This increased
+p95 latency on `/signup` and `/forgot-password` by hundreds of milliseconds and
+made the application vulnerable to SMTP timeouts under load.
+
+#### Solution
+
+Introduced **Celery 5 + Redis** as a task queue for all outbound email.
+A `send_email_task` Celery task handles message construction and delivery; route
+handlers call `send_email_task.delay(...)` so the HTTP response is returned
+before the SMTP transaction begins.  Resilience is provided by two libraries
+working in concert: **tenacity** retries transient network/IO errors up to
+3 times with exponential back-off (60 s → 120 s → 240 s), while **pybreaker**
+trips the SMTP circuit breaker after 5 consecutive task-level failures,
+rejecting new attempts for 60 s and allowing the mail server to recover.  A
+dead-letter log entry is written after permanent failure.  A **Flower**
+dashboard (dev only) provides real-time visibility into worker state and task
+history.
+
+#### Delivery architecture
+
+**Async dispatch flow** — HTTP response is returned before the SMTP
+transaction begins:
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Route as Route Handler
+    participant Broker as Redis Broker
+    participant Worker as Celery Worker
+    participant SMTP as SMTP Server
+    Client->>Route: POST /signup or /forgot-password
+    Route->>Broker: send_email_task.delay(...)
+    Route-->>Client: 200 OK (immediate — before SMTP)
+    Broker->>Worker: Dequeue task from email queue
+    Worker->>SMTP: mail.send()
+    alt Delivery succeeds
+        SMTP-->>Worker: OK
+        Worker-->>Broker: status = sent
+    else Transient error — tenacity retries
+        loop up to 3 retries (60 s → 120 s → 240 s)
+            SMTP-->>Worker: ConnectionError / TimeoutError / OSError
+            Worker->>SMTP: mail.send() (retry)
+        end
+        Worker-->>Broker: status = FAILURE (DLQ logged)
+    else Circuit breaker OPEN
+        Worker-->>Broker: CircuitBreakerError (DLQ logged)
+    end
+```
+
+**Three-layer resilience model** — each layer has a distinct responsibility:
+
+```mermaid
+flowchart TD
+    A["send_email_task\nCelery · max_retries=0"] --> B{"smtp_breaker\npybreaker"}
+    B -->|"OPEN — ≥5 consecutive failures"| C["CircuitBreakerError\nlogged → task FAILURE"]
+    B -->|"CLOSED / HALF-OPEN"| D["_deliver(msg)\ntenacity @retry"]
+    D --> E["mail.send()\nFlask-Mail"]
+    E -->|Success| F["{status: sent}"]
+    E -->|"Transient error\nConnectionError · TimeoutError\nOSError · IOError"| G{"attempt ≤ 4?"}
+    G -->|Yes| H["wait exponential\n60 s → 120 s → 240 s"]
+    H --> D
+    G -->|"No — retries exhausted"| I["re-raise exception\nfailure_count +1 in breaker"]
+    E -->|"Permanent error\nRuntimeError · ValueError"| I
+    I --> J["ERROR logged → task FAILURE / DLQ"]
+```
+
+**Circuit breaker state machine** — protects the worker queue when the SMTP
+server is degraded:
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    CLOSED --> CLOSED : delivery success\n(failure count reset)
+    CLOSED --> OPEN : failure_count ≥ CIRCUIT_BREAKER_MAX_FAIL (5)\nconsecutive task-level failures
+    OPEN --> HALF_OPEN : CIRCUIT_BREAKER_RESET_TIMEOUT elapsed (120 s)
+    HALF_OPEN --> CLOSED : probe attempt succeeds
+    HALF_OPEN --> OPEN : probe attempt fails
+```
+
+#### Changes implemented
+
+| Task | File(s) modified | Summary |
+|---|---|---|
+| TASK-015-1 | `pyproject.toml`, `requirements.in`, `config/default.py`, `config/testing.py` | Added `celery[redis]>=5.3.0` and `flower>=2.0.0` dependencies; added `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `CELERY_TASK_SERIALIZER`, `CELERY_ACCEPT_CONTENT`, `CELERY_TASK_TRACK_STARTED`, `CELERY_TASK_TIME_LIMIT`, `CELERY_TASK_ALWAYS_EAGER`, `USE_ASYNC_EMAIL` to default config; testing overrides: `CELERY_TASK_ALWAYS_EAGER=True`, `CELERY_TASK_EAGER_PROPAGATES=True`, `USE_ASYNC_EMAIL=False` |
+| TASK-015-2 | `core/tasks/__init__.py` *(new)*, `core/tasks/email_tasks.py` *(new)* | `core/tasks/__init__.py`: `ContextTask` base class pushes Flask app context; `init_celery(app)` configures broker URL, result backend, task routing, and eager mode from app config; `celery` module-level instance exposed for CLI. `core/tasks/email_tasks.py`: `@celery.task(bind=True, name="core.tasks.email_tasks.send_email_task", max_retries=3, queue="email")` — builds `flask_mail.Message`, calls `mail.send()`; retries with exponential back-off; logs permanently-failed tasks to dead-letter queue |
+| TASK-015-3 | `core/users/routes/signup.py`, `server/config/mails.py` | `signup.py`: replaced `# TODO: send activation email` with `send_email_task.delay(...)` gated on `USE_ASYNC_EMAIL`; response returned immediately. `mails.py`: `send_password_reset_email()` now dispatches via `send_email_task.delay(...)` when `USE_ASYNC_EMAIL=True`, falls back to direct `mail.send()` otherwise |
+| TASK-015-4 | `Docker/application/dev/docker-compose-dev.yaml`, `Docker/application/prod/docker-compose-prod.yaml` | Dev: added `celery-worker` service (`--queues=email,celery`) and `celery-flower` service (port 5555, `FLOWER_BASIC_AUTH`). Prod: added `celery-worker` service (`--concurrency=2 --loglevel=warning`, CPU 0.50 / RAM 256 M, `app_bridge` network) |
+| TASK-015-5 | `core/tasks/email_tasks.py` | Retry policy: `max_retries=3`, `countdown = 60 × 2^retry_number` (60 s → 120 s → 240 s); after exhaustion the original exception is re-raised and an `ERROR`-level DLQ log entry is written |
+| TASK-015-6 | `Docker/application/dev/docker-compose-dev.yaml` | `celery-flower` service: `celery -A application.celery flower --port=5555 --basic-auth=${FLOWER_BASIC_AUTH:-admin:admin}`; port 5555 exposed on host; depends on `redis` and `celery-worker` |
+| TASK-015-7 | `tests/test_async_email.py` *(new)* | 12 tests across 3 classes: `TestSignupEmailDispatch` (7) — delay called when `USE_ASYNC_EMAIL=True`, not called when False, 200 returned immediately, response keys present; `TestSendEmailTask` (3) — success result, send-to-correct-recipient, HTML body; `TestPasswordResetEmailDispatch` (2) — delay called when async, `mail.send` called directly when sync. Retry tests use `task_eager_propagates=False` to exercise full retry cycle in eager mode |
+
+#### Celery configuration summary
+
+| Variable | Default | testing |
+|---|---|---|
+| `CELERY_BROKER_URL` | `redis://redis:6379/1` | (same) |
+| `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | (same) |
+| `CELERY_TASK_ALWAYS_EAGER` | `False` | `True` |
+| `CELERY_TASK_EAGER_PROPAGATES` | — | `True` |
+| `USE_ASYNC_EMAIL` | `True` | `False` |
+
+#### Flower dashboard (dev only)
+
+| Field | Value |
+|---|---|
+| **URL** | `http://localhost:5555` |
+| **Auth** | Basic — env var `FLOWER_BASIC_AUTH` (default `admin:admin`) |
+| **Command** | `celery -A application.celery flower --port=5555` |
