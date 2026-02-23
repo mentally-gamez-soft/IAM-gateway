@@ -563,6 +563,92 @@ sequenceDiagram
 
 ---
 
+### 5.9 User Profile — Get Profile Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as GET /profile
+    participant Guard as authorization_guard
+    participant Login as login_required
+    participant DB as PostgreSQL
+
+    User->>API: GET /profile {data: {access_token, user}}
+    API->>Guard: decode_jwt(access_token)
+    alt JWT invalid or expired
+        Guard-->>User: 401 — Unauthorized
+    end
+    Guard->>DB: Fetch GwUser by decoded id
+    alt User not found
+        Guard-->>User: 401 — Unauthorized
+    end
+    alt User deleted or not active
+        Guard-->>User: 401 — Unauthorized
+    end
+    Guard->>Login: flask_login.current_user loaded
+    Login->>API: Pass authenticated user
+    API->>API: user.to_profile_dict()
+    API-->>User: 200 — {id, username, email,\ndisplay_name, avatar_url, bio,\nlanguage_preference, timezone,\nprofile_updated_at}
+```
+
+---
+
+### 5.10 User Profile — Update Profile Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as PUT /profile
+    participant Guard as authorization_guard
+    participant Validator as Payload Validator
+    participant DB as PostgreSQL
+
+    User->>API: PUT /profile {data: {access_token, user, profile: {fields…}}}
+    API->>Guard: decode_jwt(access_token)
+    alt JWT invalid or expired
+        Guard-->>User: 401 — Unauthorized
+    end
+    Guard->>DB: Fetch GwUser by decoded id
+    alt User not found / deleted / inactive
+        Guard-->>User: 401 — Unauthorized
+    end
+    Guard->>API: Pass authenticated user
+    API->>Validator: Inspect profile keys
+    alt Contains immutable key (email / username / password / roles)
+        Validator-->>User: 400 — Field not updatable via this endpoint
+    end
+    alt No updatable fields present
+        Validator-->>User: 400 — Nothing to update
+    end
+    API->>DB: user.update_profile(profile_data)
+    Note over DB: Updates: display_name, avatar_url, bio,<br/>language_preference, timezone<br/>Sets profile_updated_at = utcnow()
+    DB-->>API: Committed GwUser
+    API-->>User: 200 — {message: "profile updated", profile: {…}}
+```
+
+#### Field mutability overview
+
+```mermaid
+flowchart TD
+    subgraph Mutable via PUT /profile
+        A[display_name\nString ≤80, optional]
+        B[avatar_url\nString ≤255, optional]
+        C[bio\nText, optional]
+        D[language_preference\nString 2-5, default en]
+        E[timezone\nString ≤50, default UTC]
+    end
+    subgraph Immutable — rejected with 400
+        F[email]
+        G[username]
+        H[password]
+        I[roles]
+    end
+    A & B & C & D & E --> U[update_profile\nprofile_updated_at set automatically]
+    F & G & H & I --> R[400 Field not updatable]
+```
+
+---
+
 ## 6. Database Models
 
 ```mermaid

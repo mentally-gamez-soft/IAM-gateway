@@ -101,13 +101,88 @@ The request body must include `access_token` (or legacy `jwt`) and `user` inside
 | `timezone` | String ≤50 | **Yes** | IANA timezone (e.g. `UTC`, `Europe/Paris`) |
 | `profile_updated_at` | DateTime | Auto | Set automatically on each PUT |
 
+#### Flow diagrams
+
+##### GET /profile
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as GET /profile
+    participant Guard as authorization_guard
+    participant DB as PostgreSQL
+
+    User->>API: GET /profile {data: {access_token, user}}
+    API->>Guard: Validate JWT + user identity
+    alt Invalid / expired token
+        Guard-->>User: 401 — Unauthorized
+    end
+    alt User not found or not active
+        Guard-->>User: 401 — Unauthorized
+    end
+    Guard->>DB: Fetch GwUser by id
+    DB-->>Guard: GwUser record
+    Guard->>API: Pass user
+    API->>API: Build profile dict (to_profile_dict)
+    API-->>User: 200 — {id, username, email, display_name, avatar_url, bio, language_preference, timezone, profile_updated_at}
+```
+
+##### PUT /profile
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as PUT /profile
+    participant Guard as authorization_guard
+    participant Validator as Payload Validator
+    participant DB as PostgreSQL
+
+    User->>API: PUT /profile {data: {access_token, user, profile: {...}}}
+    API->>Guard: Validate JWT + user identity
+    alt Invalid / expired token
+        Guard-->>User: 401 — Unauthorized
+    end
+    Guard->>API: Pass authenticated user
+    API->>Validator: Check profile payload keys
+    alt Contains immutable field (email / username / password / roles)
+        Validator-->>User: 400 — Field not updatable via this endpoint
+    end
+    alt No mutable fields provided
+        Validator-->>User: 400 — Nothing to update
+    end
+    API->>DB: user.update_profile(data)
+    Note over DB: Sets display_name, avatar_url, bio,<br/>language_preference, timezone,<br/>profile_updated_at = now()
+    DB-->>API: Updated GwUser
+    API-->>User: 200 — {message: profile updated, profile: {...}}
+```
+
+##### Mutable vs immutable fields
+
+```mermaid
+flowchart LR
+    subgraph PUT /profile payload fields
+        direction TB
+        A[display_name ✅]
+        B[avatar_url ✅]
+        C[bio ✅]
+        D[language_preference ✅]
+        E[timezone ✅]
+        F[email ❌ immutable]
+        G[username ❌ immutable]
+        H[password ❌ immutable]
+        I[roles ❌ immutable]
+    end
+    A & B & C & D & E --> U[update_profile\nsets profile_updated_at automatically]
+    F & G & H & I --> R[400 Bad Request]
+```
+
 #### curl examples
 
 ```bash
 # GET profile
 curl -s -X GET http://localhost:5000/profile \
   -H "Content-Type: application/json" \
-  -d '{"data":{"access_token":"<JWT>","user":"<base64-user-id>"}}'
+  -d '{"data":{"access_token":"<JWT>","user":"<base64-user-id>"}}'"}
 
 # PUT profile
 curl -s -X PUT http://localhost:5000/profile \
