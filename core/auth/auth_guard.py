@@ -52,7 +52,7 @@ def authorization_guard(f, role=None):
     def decorated_function(*args, **kwargs):
         json = request.get_json()
 
-        # Authentication gate
+        # Authentication gate — accept both legacy "jwt" and new "access_token".
         try:
             jwt = json["data"].get("jwt") or json["data"].get("access_token")
             user = json["data"]["user"]

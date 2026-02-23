@@ -13,6 +13,7 @@ from . import (
     login,
     logout,
     password_reset,
+    profile,
     roles,
     sanity_check,
     signup,

@@ -78,6 +78,136 @@
           }
         }
       },
+      "/profile": {
+        "get": {
+          "summary": "Get authenticated user profile",
+          "description": "Returns the full profile of the currently authenticated user. Requires a valid JWT in the request body.",
+          "tags": ["Profile"],
+          "consumes": ["application/json"],
+          "produces": ["application/json"],
+          "parameters": [
+            {
+              "name": "body",
+              "in": "body",
+              "required": true,
+              "schema": {
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "required": ["jwt", "user"],
+                    "properties": {
+                      "jwt": { "type": "string", "description": "Current JWT access token" },
+                      "user": { "type": "string", "description": "Base64-encoded user ID" }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Profile retrieved successfully.",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "integer", "example": 200 },
+                  "message": { "type": "string", "example": "Profile retrieved successfully." },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "profile": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "format": "uuid" },
+                          "username": { "type": "string" },
+                          "email": { "type": "string", "format": "email" },
+                          "display_name": { "type": "string", "nullable": true },
+                          "avatar_url": { "type": "string", "nullable": true },
+                          "bio": { "type": "string", "nullable": true },
+                          "language_preference": { "type": "string", "example": "en" },
+                          "timezone": { "type": "string", "example": "UTC" },
+                          "is_admin": { "type": "boolean" },
+                          "active": { "type": "boolean" },
+                          "created_on": { "type": "string", "format": "date-time", "nullable": true },
+                          "activated_on": { "type": "string", "format": "date-time", "nullable": true },
+                          "profile_updated_at": { "type": "string", "format": "date-time", "nullable": true },
+                          "roles": { "type": "array", "items": { "type": "string" } }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "401": { "description": "Unauthorized — missing or invalid JWT." },
+            "403": { "description": "Forbidden — account not activated." },
+            "422": { "description": "Unprocessable entity — malformed payload." }
+          }
+        },
+        "put": {
+          "summary": "Update authenticated user profile",
+          "description": "Updates mutable profile fields for the currently authenticated user. Protected fields (email, username, password, roles) cannot be changed via this endpoint.",
+          "tags": ["Profile"],
+          "consumes": ["application/json"],
+          "produces": ["application/json"],
+          "parameters": [
+            {
+              "name": "body",
+              "in": "body",
+              "required": true,
+              "schema": {
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "required": ["jwt", "user"],
+                    "properties": {
+                      "jwt": { "type": "string", "description": "Current JWT access token" },
+                      "user": { "type": "string", "description": "Base64-encoded user ID" },
+                      "profile": {
+                        "type": "object",
+                        "description": "Fields to update — all optional.",
+                        "properties": {
+                          "display_name": { "type": "string", "maxLength": 80, "nullable": true },
+                          "avatar_url": { "type": "string", "maxLength": 255, "nullable": true },
+                          "bio": { "type": "string", "nullable": true },
+                          "language_preference": { "type": "string", "minLength": 2, "maxLength": 5, "example": "fr" },
+                          "timezone": { "type": "string", "maxLength": 50, "example": "Europe/Paris" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Profile updated successfully.",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "integer", "example": 200 },
+                  "message": { "type": "string", "example": "Profile updated successfully." },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "profile": { "type": "object", "description": "Updated profile object (same schema as GET /profile)." }
+                    }
+                  }
+                }
+              }
+            },
+            "400": { "description": "Bad request — validation error or attempt to update protected field." },
+            "401": { "description": "Unauthorized — missing or invalid JWT." },
+            "403": { "description": "Forbidden — account not activated." },
+            "422": { "description": "Unprocessable entity — malformed payload." }
+          }
+        }
+      },
       "/user/data": {
         "post": {
           "summary": "Export all personal data (GDPR Article 20)",
