@@ -6,23 +6,33 @@ Test coverage (TASK-015-7)
  2.  ``USE_ASYNC_EMAIL=False`` — signup does *not* dispatch the task.
  3.  ``send_email_task`` succeeds when ``mail.send`` works.
  4.  HTTP 200 is returned before email delivery completes.
- 5.  ``send_email_task`` retries on SMTP failure (expected exception raised).
- 6.  ``send_email_task`` retries exactly ``max_retries`` times before failing.
- 7.  ``send_email_task`` re-raises the exception on permanent failure.
+ 5.  ``send_email_task`` retries on transient SMTP failure.
+ 6.  ``send_email_task`` retries exactly 3 times (4 calls total, via tenacity).
+ 7.  ``send_email_task`` re-raises immediately on non-retryable exception.
  8.  Password-reset helper dispatches ``send_email_task.delay`` when async.
  9.  Password-reset helper falls back to synchronous send when not async.
 10.  Signup response contains the expected ``user`` and ``jwt`` keys.
+11.  Circuit breaker open — task fails immediately without calling mail.send.
+12.  Non-retryable exception (RuntimeError) does not trigger retries.
 
 Config notes (config/testing.py)
 ----------------------------------
-* ``CELERY_TASK_ALWAYS_EAGER = True``   — tasks execute synchronously.
+* ``CELERY_TASK_ALWAYS_EAGER = True``     — tasks execute synchronously.
 * ``CELERY_TASK_EAGER_PROPAGATES = True`` — exceptions propagate to tests.
-* ``USE_ASYNC_EMAIL = False``            — email dispatch off by default.
+* ``USE_ASYNC_EMAIL = False``             — email dispatch off by default.
+
+Retry-related notes
+-------------------
+With pybreaker + tenacity owning retries, Celery's ``max_retries=0`` means
+``self.retry()`` is never called.  tenacity sleeps are patched via
+``time.sleep`` to keep tests instant.
 """
 
 import json
 import unittest
 from unittest.mock import MagicMock, patch
+
+import pybreaker
 
 from tests import BaseTestClass
 
@@ -128,15 +138,33 @@ class TestSignupEmailDispatch(BaseTestClass):
 
 
 # ---------------------------------------------------------------------------
-# 3, 5, 6, 7 — send_email_task unit tests
+# 3, 5, 6, 7, 11, 12 — send_email_task unit tests
 # ---------------------------------------------------------------------------
 
 
 class TestSendEmailTask(BaseTestClass):
     """Unit tests that exercise send_email_task directly via .apply()."""
 
+    def setUp(self):
+        super().setUp()
+        # Reset the circuit breaker to CLOSED before each test so previous
+        # failures do not bleed into the next test.
+        from core.tasks.email_tasks import smtp_breaker
+
+        smtp_breaker.close()
+
+    def tearDown(self):
+        from core.tasks.email_tasks import smtp_breaker
+
+        smtp_breaker.close()
+        super().tearDown()
+
     def _apply_task(self, **overrides):
-        """Run the task synchronously and return the AsyncResult."""
+        """Run the task synchronously and return the AsyncResult.
+
+        tenacity retries are instant because ``time.sleep`` is patched by
+        individual test methods that exercise the retry path.
+        """
         from core.tasks.email_tasks import send_email_task
 
         kwargs = {**_VALID_EMAIL_KWARGS, **overrides}
@@ -153,63 +181,67 @@ class TestSendEmailTask(BaseTestClass):
         self.assertEqual(_VALID_EMAIL_KWARGS["to"], result.result["to"])
         mock_mail.send.assert_called_once()
 
+    @patch("time.sleep")
     @patch(_MAIL_PATH)
-    def test_task_retries_on_smtp_failure(self, mock_mail):
-        """Task must raise an exception when mail.send fails."""
+    def test_task_retries_on_smtp_failure(self, mock_mail, mock_sleep):
+        """Task must raise an exception when mail.send fails with a
+        transient error; tenacity sleep is patched to keep the test instant."""
         mock_mail.send.side_effect = ConnectionError("SMTP unreachable")
 
         with self.assertRaises(Exception):
             self._apply_task()
 
+    @patch("time.sleep")
     @patch(_MAIL_PATH)
-    def test_task_retries_exactly_max_retries_times(self, mock_mail):
-        """mail.send must be called 1 + max_retries (=4) times total,
-        verifying retry exhaustion.
+    def test_task_retries_exactly_max_retries_times(
+        self, mock_mail, mock_sleep
+    ):
+        """mail.send must be called exactly 4 times (1 initial + 3 tenacity
+        retries) before the exception propagates.
 
-        ``CELERY_TASK_EAGER_PROPAGATES`` is temporarily disabled so that
-        Celery's eager runner executes the task the full retry cycle instead
-        of propagating ``Retry`` on the first attempt.
+        tenacity owns the retry cycle; Celery’s max_retries is 0.
+        ``time.sleep`` is patched so the exponential back-off is instant.
         """
-        from core.tasks import celery
-        from core.tasks.email_tasks import send_email_task
-
         mock_mail.send.side_effect = OSError("Persistent SMTP failure")
 
-        celery.conf.update(task_eager_propagates=False)
-        try:
-            # apply() without throw=True so task_eager_propagates=False takes effect
-            result = send_email_task.apply(kwargs=_VALID_EMAIL_KWARGS)
-        finally:
-            celery.conf.update(task_eager_propagates=True)
+        with self.assertRaises(OSError):
+            self._apply_task()
 
-        self.assertTrue(result.failed())
-        self.assertEqual(
-            1 + send_email_task.max_retries,
-            mock_mail.send.call_count,
-        )
+        self.assertEqual(4, mock_mail.send.call_count)
+        # tenacity must have invoked the back-off sleep 3 times
+        self.assertEqual(3, mock_sleep.call_count)
 
     @patch(_MAIL_PATH)
-    def test_task_re_raises_exception_on_permanent_failure(self, mock_mail):
-        """After exhausting all retries the original exception type is stored
-        in the result.
+    def test_task_re_raises_immediately_on_non_retryable_exception(
+        self, mock_mail
+    ):
+        """RuntimeError is not in _RETRYABLE_EXCEPTIONS so tenacity must
+        propagate it immediately without any retry attempt."""
+        mock_mail.send.side_effect = RuntimeError("Auth failure")
 
-        ``CELERY_TASK_EAGER_PROPAGATES`` is temporarily disabled so that
-        Celery runs the full retry cycle; the original ``RuntimeError`` is
-        wrapped in ``result.info`` after ``max_retries`` are exhausted.
-        """
-        from core.tasks import celery
-        from core.tasks.email_tasks import send_email_task
+        with self.assertRaises(RuntimeError):
+            self._apply_task()
 
-        mock_mail.send.side_effect = RuntimeError("Unrecoverable SMTP error")
+        # Only the single initial attempt — no retries
+        self.assertEqual(1, mock_mail.send.call_count)
 
-        celery.conf.update(task_eager_propagates=False)
-        try:
-            result = send_email_task.apply(kwargs=_VALID_EMAIL_KWARGS)
-        finally:
-            celery.conf.update(task_eager_propagates=True)
+    def test_task_fails_immediately_when_circuit_is_open(self):
+        """When the SMTP circuit breaker is OPEN the task must raise
+        ``CircuitBreakerError`` without making any call to mail.send."""
+        from core.tasks.email_tasks import send_email_task, smtp_breaker
+
+        smtp_breaker.open()  # force breaker to OPEN state
+
+        with patch(_MAIL_PATH) as mock_mail:
+            mock_mail.send = MagicMock()
+            # throw=False: prevents eager propagation so we can inspect result
+            result = send_email_task.apply(
+                kwargs=_VALID_EMAIL_KWARGS, throw=False
+            )
 
         self.assertTrue(result.failed())
-        self.assertIsInstance(result.info, RuntimeError)
+        self.assertIsInstance(result.info, pybreaker.CircuitBreakerError)
+        mock_mail.send.assert_not_called()
 
     @patch(_MAIL_PATH)
     def test_task_sends_to_correct_recipient(self, mock_mail):

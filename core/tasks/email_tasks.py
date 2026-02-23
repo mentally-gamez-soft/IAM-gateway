@@ -3,11 +3,16 @@
 Design
 ------
 * **Queue**: ``email``  (configured in ``core/tasks/__init__.py``)
-* **Retries**: up to ``max_retries=3`` with exponential back-off
-  (60 s → 120 s → 240 s).
-* **Dead-letter**: after the third retry failure the error is logged with
-  full context.  In production a message-level dead-letter queue
-  (``email.dlq``) can be configured at the broker level.
+* **Retry policy (tenacity)**: up to 3 retries with exponential back-off
+  (60 s → 120 s → 240 s). Only transient network/IO errors trigger retries;
+  permanent errors (auth, bad recipient, configuration) propagate immediately.
+* **Circuit breaker (pybreaker)**: wraps the entire tenacity-managed delivery
+  sequence.  One *task-level* failure (even after 4 attempts internally) counts
+  as a single failure increment.  After ``SMTP_FAIL_MAX`` consecutive task
+  failures the breaker trips and rejects new tasks immediately, letting the
+  worker queue drain and the mail server recover.
+* **Dead-letter**: after all retries are exhausted (or the circuit is open)
+  the error is logged with full context and the task is marked ``FAILURE``.
 * **Flask context**: ``ContextTask`` (see ``core/tasks/__init__.py``) pushes
   the application context, so ``Flask-Mail`` and the current app config are
   always available.
@@ -27,19 +32,77 @@ Usage::
 
 import logging
 
+import pybreaker
 from flask_mail import Message
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from core.tasks import celery
 from server.config.mails import mail
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Transient error types that tenacity should retry.
+# Permanent errors (RuntimeError, ValueError, …) propagate immediately.
+# ---------------------------------------------------------------------------
+_RETRYABLE_EXCEPTIONS = (ConnectionError, TimeoutError, OSError, IOError)
+
+# ---------------------------------------------------------------------------
+# SMTP circuit breaker
+#
+# Trips after SMTP_FAIL_MAX consecutive *task-level* failures — i.e. after a
+# task has already exhausted all of its tenacity retries.  One task execution
+# (regardless of how many internal attempts tenacity made) counts as a single
+# failure increment.  After SMTP_RESET_TIMEOUT seconds in the OPEN state the
+# breaker moves to HALF-OPEN and lets one probe attempt through.
+# ---------------------------------------------------------------------------
+SMTP_FAIL_MAX = 5
+SMTP_RESET_TIMEOUT = 60
+
+smtp_breaker = pybreaker.CircuitBreaker(
+    fail_max=SMTP_FAIL_MAX,
+    reset_timeout=SMTP_RESET_TIMEOUT,
+    name="smtp",
+)
+
+
+# ---------------------------------------------------------------------------
+# Per-attempt delivery helper — tenacity owns the retry / back-off policy
+# ---------------------------------------------------------------------------
+@retry(
+    reraise=True,
+    stop=stop_after_attempt(4),  # 1 initial + 3 retries
+    wait=wait_exponential(
+        multiplier=60, min=60, max=240
+    ),  # 60 s → 120 s → 240 s
+    retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+)
+def _deliver(msg: Message) -> None:
+    """Single delivery attempt; tenacity retries on transient errors only."""
+    mail.send(msg)
+
+
+def _send_message(msg: Message) -> None:
+    """Guard the tenacity-retried delivery with the SMTP circuit breaker.
+
+    The breaker wraps the *entire* retry sequence so one task-level failure
+    (possibly spanning up to 4 internal attempts) counts as a single failure
+    increment towards ``SMTP_FAIL_MAX``.
+    """
+    smtp_breaker.call(_deliver, msg)
+
 
 @celery.task(
     bind=True,
     name="core.tasks.email_tasks.send_email_task",
-    max_retries=3,
-    default_retry_delay=60,
+    max_retries=0,  # tenacity owns retries; Celery is the outer shell only
     queue="email",
 )
 def send_email_task(
@@ -53,7 +116,7 @@ def send_email_task(
     """Send an email asynchronously via Flask-Mail.
 
     Args:
-        self: Bound Celery task instance (retry / request access).
+        self: Bound Celery task instance.
         to: Recipient email address.
         subject: Email subject line.
         body: Plain-text body.
@@ -64,8 +127,8 @@ def send_email_task(
         dict: ``{"status": "sent", "to": to}`` on success.
 
     Raises:
-        self.retry: Raised automatically on SMTP / network errors
-            (up to ``max_retries`` times, with exponential back-off).
+        pybreaker.CircuitBreakerError: When the SMTP circuit breaker is open.
+        Exception: When all tenacity retries are exhausted.
     """
     try:
         msg = Message(
@@ -74,7 +137,7 @@ def send_email_task(
             body=body,
             html=html_body or body,
         )
-        mail.send(msg)
+        _send_message(msg)
         logger.info(
             "Email sent successfully: to=%s subject=%s task_id=%s",
             to,
@@ -83,35 +146,25 @@ def send_email_task(
         )
         return {"status": "sent", "to": to}
 
-    except Exception as exc:
-        retry_number = self.request.retries
-        next_retry = retry_number + 1
-
-        if retry_number < self.max_retries:
-            # Exponential back-off: 60 s, 120 s, 240 s
-            countdown = 60 * (2**retry_number)
-            logger.warning(
-                "Email delivery failed (attempt %d/%d): to=%s error=%s "
-                "— retrying in %d s (task_id=%s)",
-                next_retry,
-                self.max_retries,
-                to,
-                str(exc),
-                countdown,
-                self.request.id,
-            )
-            raise self.retry(exc=exc, countdown=countdown)
-
-        # All retries exhausted — log and route to dead-letter queue
+    except pybreaker.CircuitBreakerError as exc:
         logger.error(
-            "Email delivery permanently failed after %d attempts: "
+            "SMTP circuit breaker OPEN — email not sent: "
+            "to=%s task_id=%s error=%s",
+            to,
+            self.request.id,
+            str(exc),
+        )
+        raise
+
+    except Exception as exc:
+        # Tenacity has already exhausted all retries at this point.
+        logger.error(
+            "Email delivery permanently failed after retries: "
             "to=%s subject=%s error=%s task_id=%s — "
             "message routed to dead-letter queue (email.dlq)",
-            self.max_retries,
             to,
             subject,
             str(exc),
             self.request.id,
         )
-        # Re-raise so Celery marks the task as FAILURE
         raise
